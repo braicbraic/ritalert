@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RitAlert — App</title>
+    <meta name="description" content="Track wallet addresses and smart contracts across multiple blockchains with AI-powered alerts.">
+    <link rel="stylesheet" href="app.css?v=ritual-theme-17">
+</head>
+<body>
+
+    <!-- ========== TOP NAVIGATION ========== -->
+    <nav class="app-nav">
+        <a href="index.html" class="app-logo">
+            <svg viewBox="0 0 220 220" width="28" height="28">
+                <path d="M 115 25 L 60 80 L 115 135 L 170 80" fill="none" stroke="var(--ritual-red)" stroke-width="12" stroke-linecap="square" />
+                <path d="M 100 40 L 45 95 L 100 150 L 155 95" fill="none" stroke="var(--ritual-ember)" stroke-width="12" stroke-linecap="square" />
+                <rect x="180" y="45" width="12" height="12" fill="var(--ritual-ember)" transform="rotate(45 186 51)" />
+                <rect x="198" y="27" width="12" height="12" fill="var(--ritual-ember)" transform="rotate(45 204 33)" />
+            </svg>
+            <span class="app-logo-text">ritalert</span>
+        </a>
+
+        <div class="app-nav-center">
+            <!-- Chain Switcher -->
+            <div class="chain-switcher" id="chain-switcher">
+                <button class="chain-selected" id="chain-selected-btn">
+                    <span class="chain-icon chain-icon-ritual" id="selected-chain-icon">R</span>
+                    <span id="selected-chain-name">Ritual Testnet</span>
+                    <span class="chain-chevron">▼</span>
+                </button>
+                <div class="chain-dropdown" id="chain-dropdown">
+                    <div class="chain-option active" data-chain="ritual">
+                        <span class="chain-icon chain-icon-ritual">R</span>
+                        <span>Ritual Testnet</span>
+                        <span class="chain-status chain-status-active">Live</span>
+                    </div>
+                    <div class="chain-option" data-chain="ethereum">
+                        <span class="chain-icon chain-icon-eth">Ξ</span>
+                        <span>Ethereum</span>
+                        <span class="chain-status chain-status-active">Live</span>
+                    </div>
+                    <div class="chain-option disabled" data-chain="bsc">
+                        <span class="chain-icon chain-icon-bsc">B</span>
+                        <span>BNB Smart Chain</span>
+                        <span class="chain-status chain-status-soon">Soon</span>
+                    </div>
+                    <div class="chain-option disabled" data-chain="arbitrum">
+                        <span class="chain-icon chain-icon-arb">A</span>
+                        <span>Arbitrum One</span>
+                        <span class="chain-status chain-status-soon">Soon</span>
+                    </div>
+                    <div class="chain-option disabled" data-chain="optimism">
+                        <span class="chain-icon chain-icon-op">O</span>
+                        <span>Optimism</span>
+                        <span class="chain-status chain-status-soon">Soon</span>
+                    </div>
+                    <div class="chain-option disabled" data-chain="base">
+                        <span class="chain-icon chain-icon-base">B</span>
+                        <span>Base</span>
+                        <span class="chain-status chain-status-soon">Soon</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="app-nav-right">
+            <button class="wallet-btn" id="wallet-btn">
+                <span id="wallet-btn-text">Connect Wallet</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- ========== APP LAYOUT ========== -->
+    <div class="app-layout">
+
+        <!-- Mobile sidebar overlay -->
+        <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+        <!-- ===== SIDEBAR ===== -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <button class="new-chat-btn" id="new-chat-btn">
+                    <span>＋</span>
+                    New Chat
+                </button>
+            </div>
+
+            <div class="sidebar-content">
+                <!-- Tracking History -->
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Tracking History</div>
+                    <div id="tracking-history">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+
+                <!-- Active Alerts -->
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Active Alerts</div>
+                    <div id="active-alerts">
+                        <div class="sidebar-item">
+                            <span class="sidebar-item-icon">🔔</span>
+                            <span class="sidebar-item-text text-muted">No active alerts</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-bottom">
+                <!-- Dynamic Trial Banner -->
+                <div id="trial-banner" style="display: none; background: rgba(255, 140, 0, 0.1); border: 1px solid var(--ritual-orange); border-radius: 8px; padding: 0.6rem; margin-bottom: 0.75rem; text-align: center; font-size: 0.75rem;">
+                    <span style="font-weight: 700; color: var(--ritual-orange);">🎁 7-Day Free Trial Active</span>
+                </div>
+                <button class="sidebar-bottom-btn" id="upgrade-tier-btn" style="color: var(--ritual-orange); font-weight: 700;">
+                    <span>💎</span>
+                    Upgrade Account
+                </button>
+                <button class="sidebar-bottom-btn" id="notifications-setup-btn">
+                    <span>🔔</span>
+                    Notifications
+                </button>
+                <button class="sidebar-bottom-btn" id="settings-btn">
+                    <span>⚙️</span>
+                    Settings
+                </button>
+            </div>
+        </aside>
+
+        <!-- ===== MAIN CHAT PANEL ===== -->
+        <main class="chat-panel">
+
+            <!-- Paywall Overlay Gate -->
+            <div id="paywall-overlay" class="paywall-overlay">
+                <div class="paywall-card">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">🔒</div>
+                    <h2 id="paywall-title" style="font-size: 1.5rem; font-weight: 800; color: var(--text-primary); margin-bottom: 0.75rem;">Connect Wallet to Access</h2>
+                    <p id="paywall-desc" style="font-size: 0.85rem; color: var(--text-60); line-height: 1.5; margin-bottom: 1.5rem;">
+                        Connect your Web3 wallet to authorize your account and unlock the RitAlert AI tracking agent.
+                    </p>
+                    <div id="paywall-actions">
+                        <!-- Connect Wallet Button shown here if not connected -->
+                        <button class="btn btn-primary" id="paywall-connect-btn" style="padding: 0.75rem 2rem; margin: 0 auto; display: block;">Connect Wallet</button>
+                        
+                        <!-- Subscription/Trial choices shown here once connected -->
+                        <div id="paywall-upgrade-options" style="display: none;">
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-bottom: 1.5rem;">
+                                <div class="tier-select-card" id="paywall-tier-lite" style="border: 1px solid var(--white-10); padding: 0.5rem; border-radius: 8px; cursor: pointer; text-align: center;">
+                                    <div style="font-size:0.75rem; font-weight:700;">Lite</div>
+                                    <div style="font-size:0.9rem; font-weight:800; color:var(--ritual-orange);">$0.49</div>
+                                </div>
+                                <div class="tier-select-card active" id="paywall-tier-pro" style="border: 2px solid var(--ritual-red); background: var(--bg-hover); padding: 0.5rem; border-radius: 8px; cursor: pointer; text-align: center;">
+                                    <div style="font-size:0.75rem; font-weight:700;">Pro</div>
+                                    <div style="font-size:0.9rem; font-weight:800; color:var(--ritual-orange);">$1.99</div>
+                                </div>
+                                <div class="tier-select-card" id="paywall-tier-sovereign" style="border: 1px solid var(--white-10); padding: 0.5rem; border-radius: 8px; cursor: pointer; text-align: center;">
+                                    <div style="font-size:0.75rem; font-weight:700;">Sovereign</div>
+                                    <div style="font-size:0.9rem; font-weight:800; color:var(--ritual-orange);">$4.99</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                <button class="btn btn-primary" id="paywall-checkout-btn" style="width: 100%; padding: 0.75rem;">Upgrade & Unlock Account</button>
+                                <button class="btn btn-outline" id="paywall-trial-btn" style="width: 100%; padding: 0.75rem; color: var(--ritual-orange); border-color: var(--ritual-red);">Start 7-Day Free Trial</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat Header -->
+            <div class="chat-header">
+                <div>
+                    <div class="chat-header-title" id="chat-header-title">RitAlert Agent</div>
+                    <div class="chat-header-subtitle" id="chat-header-subtitle">Paste any wallet or contract address to start tracking</div>
+                </div>
+                <div style="display:flex; gap:0.5rem;">
+                    <button class="btn-ask" id="clear-chat-btn" style="font-size:0.75rem;">Clear Chat</button>
+                </div>
+            </div>
+
+            <!-- Messages Area -->
+            <div class="chat-messages" id="chat-messages">
+
+                <!-- Welcome Screen (shown when no messages) -->
+                <div class="chat-welcome" id="chat-welcome">
+                    <div class="chat-welcome-logo">
+                        <svg viewBox="0 0 220 220" width="60" height="60">
+                            <path d="M 115 25 L 60 80 L 115 135 L 170 80" fill="none" stroke="var(--ritual-red)" stroke-width="10" stroke-linecap="square" opacity="0.5" />
+                            <path d="M 100 40 L 45 95 L 100 150 L 155 95" fill="none" stroke="var(--white)" stroke-width="10" stroke-linecap="square" opacity="0.4" />
+                        </svg>
+                    </div>
+                    <h2>Welcome to RitAlert</h2>
+                    <p>Track any wallet address or smart contract across chains. Get AI-powered insights and instant alerts via Telegram, Discord, and push notifications.</p>
+
+                    <div class="quick-actions">
+                        <button class="quick-action" data-action="track-sample-wallet">
+                            <span class="quick-action-icon">👛</span>
+                            Track a wallet
+                        </button>
+                        <button class="quick-action" data-action="track-sample-contract">
+                            <span class="quick-action-icon">📜</span>
+                            Monitor a contract
+                        </button>
+                        <button class="quick-action" data-action="setup-alerts">
+                            <span class="quick-action-icon">🔔</span>
+                            Setup notifications
+                        </button>
+                        <button class="quick-action" data-action="explore-chains">
+                            <span class="quick-action-icon">⛓️</span>
+                            Explore chains
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Chat Input Bar -->
+            <div class="chat-input-bar">
+                <div class="chat-input-wrapper">
+                    <input
+                        type="text"
+                        class="chat-input"
+                        id="chat-input"
+                        placeholder="Paste wallet address, contract, or ask a question..."
+                        autocomplete="off"
+                    >
+                </div>
+                <div class="chat-input-actions">
+                    <button class="btn-track" id="btn-track">Track</button>
+                    <button class="btn-ask" id="btn-ask">Ask AI</button>
+                </div>
+            </div>
+        </main>
+
+    </div>
+
+    <!-- ========== NOTIFICATIONS HUB MODAL ========== -->
+    <div class="modal-overlay" id="notifications-modal-overlay">
+        <div class="modal" style="max-width:520px;">
+            <div class="modal-header">
+                <h3 class="modal-title">🔔 Notification Channels</h3>
+                <button class="modal-close" id="notifications-modal-close">✕</button>
+            </div>
+
+            <!-- Channel Tabs -->
+            <div class="notif-tabs" style="display:flex; gap:4px; margin-bottom:1.5rem; background:var(--white-05); border-radius:8px; padding:3px;">
+                <button class="notif-tab active" data-tab="telegram" style="flex:1; padding:0.5rem; border:none; border-radius:6px; background:var(--ritual-red-10); color:var(--ritual-orange); font-weight:600; font-size:0.8rem; cursor:pointer; transition:var(--transition);">✈️ Telegram</button>
+                <button class="notif-tab" data-tab="discord" style="flex:1; padding:0.5rem; border:none; border-radius:6px; background:transparent; color:var(--white-40); font-weight:600; font-size:0.8rem; cursor:pointer; transition:var(--transition);">💬 Discord</button>
+                <button class="notif-tab" data-tab="push" style="flex:1; padding:0.5rem; border:none; border-radius:6px; background:transparent; color:var(--white-40); font-weight:600; font-size:0.8rem; cursor:pointer; transition:var(--transition);">🔔 Push</button>
+            </div>
+
+            <!-- TELEGRAM TAB -->
+            <div class="notif-panel" id="panel-telegram">
+                <div style="background:var(--ritual-red-10); border:1px solid var(--ritual-red-20); border-radius:10px; padding:1rem; margin-bottom:1.25rem; text-align:center;">
+                    <div style="font-size:1.5rem; margin-bottom:0.5rem;">✈️</div>
+                    <div style="font-weight:700; margin-bottom:0.25rem;">Connect to @ritalert_bot</div>
+                    <div style="font-size:0.8rem; color:var(--white-40); line-height: 1.5; text-align: left; max-width: 380px; margin: 0 auto;">
+                        1. Run the bot helper in your project terminal:<br><code style="background:rgba(0,0,0,0.3); padding:2px 6px; border-radius:4px; font-family:var(--font-mono); color:var(--ritual-orange); font-size:0.75rem;">node telegram-bot.js</code><br><br>
+                        2. Click below to open <strong style="color:var(--ritual-orange);">@ritalert_bot</strong> and send <code style="color:var(--ritual-orange);">/start</code>.<br><br>
+                        3. The bot will send you your Chat ID. Copy and paste it below.
+                    </div>
+                    <a href="https://t.me/ritalert_bot" target="_blank" class="btn-modal-primary" style="display:inline-flex; align-items:center; gap:0.5rem; width:auto; padding:0.6rem 1.5rem; margin-top:0.75rem; text-decoration:none; font-size:0.85rem;">Open @ritalert_bot ↗</a>
+                </div>
+
+                <div class="telegram-status" id="telegram-status">
+                    <span class="status-dot-sm status-dot-red"></span>
+                    Not connected
+                </div>
+
+                <!-- Input area -->
+                <div id="tg-input-area">
+                    <div class="form-group">
+                        <label class="form-label">Your Chat ID</label>
+                        <input type="text" class="form-input" id="tg-chat-id" placeholder="e.g. 1085633281">
+                        <div class="form-hint" style="color: var(--white-20);">Send /start to @ritalert_bot to get your Chat ID</div>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                        <button class="btn-modal-secondary" id="tg-test-btn" style="margin-top:0; flex:1;">🔔 Test Alert</button>
+                        <button class="btn-modal-primary" id="tg-save-btn" style="margin-top:0; flex:1;">Save & Connect</button>
+                    </div>
+                </div>
+
+                <!-- Saved area (hidden by default) -->
+                <div id="tg-saved-area" class="hidden" style="text-align: center; padding: 0.5rem 0;">
+                    <div style="font-family: var(--font-mono); font-size: 0.9rem; background: var(--white-05); padding: 0.75rem; border-radius: 8px; border: 1px solid var(--white-10); margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center;">
+                        <span style="color: var(--white-40);">Chat ID:</span>
+                        <span id="tg-display-chat-id" style="color: var(--ritual-orange); font-weight: 600;">--</span>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn-modal-secondary" id="tg-test-btn-saved" style="margin-top:0; flex:1;">🔔 Send Test</button>
+                        <button class="btn-modal-primary" id="tg-edit-btn" style="margin-top:0; flex:1;">✏️ Edit Details</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DISCORD TAB -->
+            <div class="notif-panel hidden" id="panel-discord">
+                <div style="background:rgba(88,101,242,0.1); border:1px solid rgba(88,101,242,0.2); border-radius:10px; padding:1rem; margin-bottom:1.25rem; text-align:center;">
+                    <div style="font-size:1.5rem; margin-bottom:0.5rem;">💬</div>
+                    <div style="font-weight:700; margin-bottom:0.25rem;">Connect Discord</div>
+                    <div style="font-size:0.8rem; color:var(--white-40);">Create a webhook in your Discord server and paste the URL below to receive alerts.</div>
+                </div>
+
+                <div class="telegram-status" id="discord-status">
+                    <span class="status-dot-sm status-dot-red"></span>
+                    Not connected
+                </div>
+
+                <!-- Input area -->
+                <div id="discord-input-area">
+                    <div class="form-group">
+                        <label class="form-label">Discord Webhook URL</label>
+                        <input type="text" class="form-input" id="discord-webhook" placeholder="https://discord.com/api/webhooks/...">
+                        <div class="form-hint" style="color: var(--white-20);">Server Settings → Integrations → Webhooks → New Webhook → Copy URL</div>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                        <button class="btn-modal-secondary" id="discord-test-btn" style="margin-top:0; flex:1;">🔔 Test Alert</button>
+                        <button class="btn-modal-primary" id="discord-save-btn" style="margin-top:0; flex:1;">Save & Connect</button>
+                    </div>
+                </div>
+
+                <!-- Saved area (hidden by default) -->
+                <div id="discord-saved-area" class="hidden" style="text-align: center; padding: 0.5rem 0;">
+                    <div style="font-family: var(--font-mono); font-size: 0.8rem; background: var(--white-05); padding: 0.75rem; border-radius: 8px; border: 1px solid var(--white-10); margin-bottom: 1.25rem; text-align: left; word-break: break-all;">
+                        <span style="color: var(--white-40); display: block; margin-bottom: 0.25rem; font-size: 0.75rem; text-transform: uppercase;">Saved Webhook URL:</span>
+                        <span id="discord-display-webhook" style="color: #5865F2; font-weight: 500;">--</span>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn-modal-secondary" id="discord-test-btn-saved" style="margin-top:0; flex:1;">🔔 Send Test</button>
+                        <button class="btn-modal-primary" id="discord-edit-btn" style="margin-top:0; flex:1;">✏️ Edit Webhook</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PUSH TAB -->
+            <div class="notif-panel hidden" id="panel-push">
+                <div style="background:rgba(255,184,0,0.08); border:1px solid rgba(255,184,0,0.15); border-radius:10px; padding:1rem; margin-bottom:1.25rem; text-align:center;">
+                    <div style="font-size:1.5rem; margin-bottom:0.5rem;">🔔</div>
+                    <div style="font-weight:700; margin-bottom:0.25rem;">Browser Push Notifications</div>
+                    <div style="font-size:0.8rem; color:var(--white-40);">Get alerts directly in your browser. Enable push notifications to stay updated even when the app is in the background.</div>
+                </div>
+
+                <div class="telegram-status" id="push-status">
+                    <span class="status-dot-sm status-dot-red"></span>
+                    Not enabled
+                </div>
+
+                <button class="btn-modal-primary" id="push-enable-btn">Enable Push Notifications</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== SETTINGS MODAL ========== -->
+    <div class="modal-overlay" id="settings-modal-overlay">
+        <div class="modal" style="max-width:450px;">
+            <div class="modal-header">
+                <h3 class="modal-title">⚙️ Settings</h3>
+                <button class="modal-close" id="settings-modal-close">✕</button>
+            </div>
+            <div style="padding: 0.5rem 0;">
+                <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <div>
+                        <label class="form-label" style="margin-bottom: 0.25rem;">Dark / Light Mode</label>
+                        <div class="form-hint" style="color: var(--white-40); margin-top: 0;">Switch between light and dark backgrounds</div>
+                    </div>
+                    <button class="theme-toggle" id="modal-theme-toggle-btn" aria-label="Toggle theme" style="width: 40px; height: 40px;">
+                        <span class="theme-icon-sun">☀️</span>
+                        <span class="theme-icon-moon">🌙</span>
+                    </button>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Active Network Mode</label>
+                    <div style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--ritual-orange); background: var(--white-05); padding: 0.75rem; border-radius: 8px; border: 1px solid var(--white-10);">
+                        🔒 Ritual Sovereign TEE Enclave Secured
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 1.5rem; border-top: 1px solid var(--white-10); padding-top: 1.5rem;">
+                    <label class="form-label" style="margin-bottom: 1rem;">Connect Socials</label>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <!-- Twitter -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; background: var(--white-05); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--white-10);">
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <span style="font-size: 1.1rem; color: #1DA1F2;">🐦</span>
+                                <div>
+                                    <div style="font-size: 0.85rem; font-weight: 600;">Twitter (X)</div>
+                                    <div style="font-size: 0.7rem; color: var(--text-40);">Post automated tracking alerts to feed</div>
+                                </div>
+                            </div>
+                            <button class="btn-modal-secondary" id="connect-twitter-btn" style="padding: 0.4rem 1rem; font-size: 0.75rem; border: 1px solid #1DA1F2; color: #1DA1F2; background: transparent; cursor: pointer; border-radius: 6px; margin: 0;">Connect</button>
+                        </div>
+                        
+                        <!-- Telegram -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; background: var(--white-05); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--white-10);">
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <span style="font-size: 1.1rem; color: #0088cc;">✈️</span>
+                                <div>
+                                    <div style="font-size: 0.85rem; font-weight: 600;">Telegram Bot</div>
+                                    <div style="font-size: 0.7rem; color: var(--text-40);">Receive real-time push alerts via bot</div>
+                                </div>
+                            </div>
+                            <button class="btn-modal-secondary" id="connect-telegram-btn" style="padding: 0.4rem 1rem; font-size: 0.75rem; border: 1px solid #0088cc; color: #0088cc; background: transparent; cursor: pointer; border-radius: 6px; margin: 0;">Connect</button>
+                        </div>
+                        
+                        <!-- Discord -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; background: var(--white-05); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--white-10);">
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <span style="font-size: 1.1rem; color: #5865F2;">💬</span>
+                                <div>
+                                    <div style="font-size: 0.85rem; font-weight: 600;">Discord Webhook</div>
+                                    <div style="font-size: 0.7rem; color: var(--text-40);">Stream notifications to server channels</div>
+                                </div>
+                            </div>
+                            <button class="btn-modal-secondary" id="connect-discord-btn" style="padding: 0.4rem 1rem; font-size: 0.75rem; border: 1px solid #5865F2; color: #5865F2; background: transparent; cursor: pointer; border-radius: 6px; margin: 0;">Connect</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== UPGRADE/BILLING MODAL ========== -->
+    <div class="modal-overlay" id="upgrade-modal-overlay">
+        <div class="modal" style="max-width:500px;">
+            <div class="modal-header">
+                <h3 class="modal-title">💎 Choose Subscription Plan</h3>
+                <button class="modal-close" id="upgrade-modal-close">✕</button>
+            </div>
+            <div style="padding: 0.5rem 0;">
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1.5rem;">
+                    <!-- Lite -->
+                    <div class="tier-select-card active" id="tier-card-lite" data-price="0.49" data-name="Lite" style="border: 2px solid var(--ritual-red); background: var(--bg-hover); padding: 0.75rem; border-radius: 10px; cursor: pointer; text-align: center; transition: var(--transition);">
+                        <div style="font-weight: 700; font-size: 0.9rem;">Lite</div>
+                        <div style="color: var(--ritual-orange); font-weight: 800; font-size: 1.1rem; margin: 0.25rem 0;">$0.49</div>
+                        <div style="font-size: 0.7rem; color: var(--text-40);">1 Address</div>
+                    </div>
+                    <!-- Pro -->
+                    <div class="tier-select-card" id="tier-card-pro" data-price="1.99" data-name="Pro" style="border: 1px solid var(--white-10); padding: 0.75rem; border-radius: 10px; cursor: pointer; text-align: center; transition: var(--transition);">
+                        <div style="font-weight: 700; font-size: 0.9rem;">Pro</div>
+                        <div style="color: var(--ritual-orange); font-weight: 800; font-size: 1.1rem; margin: 0.25rem 0;">$1.99</div>
+                        <div style="font-size: 0.7rem; color: var(--text-40);">5 Addresses</div>
+                    </div>
+                    <!-- Sovereign -->
+                    <div class="tier-select-card" id="tier-card-sovereign" data-price="4.99" data-name="Sovereign" style="border: 1px solid var(--white-10); padding: 0.75rem; border-radius: 10px; cursor: pointer; text-align: center; transition: var(--transition);">
+                        <div style="font-weight: 700; font-size: 0.9rem;">Sovereign</div>
+                        <div style="color: var(--ritual-orange); font-weight: 800; font-size: 1.1rem; margin: 0.25rem 0;">$4.99</div>
+                        <div style="font-size: 0.7rem; color: var(--text-40);">Unlimited</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" style="margin-bottom: 0.75rem;">Select Payment Channel</label>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <!-- Stripe -->
+                        <button class="btn-modal-secondary" id="checkout-stripe-btn" style="margin-top:0; display:flex; justify-content:flex-start; align-items:center; gap:1.5rem; padding:0.85rem 1rem;">
+                            <span style="display:flex; align-items:center; gap:0.5rem; min-width:140px;">💳 Pay with Card</span>
+                            <span style="display:flex; align-items:center; color:#635bff;">
+                                <svg width="52" height="22" viewBox="0 0 40 16" fill="currentColor" style="display:inline-block; vertical-align:middle;"><path d="M35.6 7.4c0-2.3-1.2-3.6-3.3-3.6-2.1 0-3.4 1.4-3.4 3.6 0 2.6 1.4 3.7 3.5 3.7 1 0 1.9-.2 2.6-.6l-.4-1.2c-.6.3-1.3.4-1.9.4-1.1 0-1.9-.4-2-1.3h6.4c0-.2.1-.7.1-1zm-4.7-1c0-.9.6-1.4 1.3-1.4.7 0 1.2.5 1.2 1.4h-2.5zm-5.7-2.6h-2v1.5h-.1c-.3-.7-1.1-1.8-2.9-1.8-1.9 0-3.3 1.5-3.3 3.6 0 2.5 1.4 3.7 3.2 3.7 1.8 0 2.8-1.1 3-1.8h.1v1.6h2V3.8zm-2.1 3.5c0 1.1-.6 1.9-1.5 1.9-1 0-1.6-.7-1.6-1.9s.6-1.9 1.6-1.9c.9 0 1.5.8 1.5 1.9zm-7.6-5c-.6 0-1.1.5-1.1 1.1s.5 1.1 1.1 1.1 1.1-.5 1.1-1.1-.5-1.1-1.1-1.1zm.9 1.3h-1.9v7.1h1.9V3.6zm-4.1 1.2c-.4-.2-.9-.3-1.5-.3-1.3 0-2.1.7-2.1 1.8 0 2.5 2.9 1.7 2.9 2.6 0 .4-.4.6-.9.6-.6 0-1.3-.3-1.8-.6l-.4 1.3c.6.4 1.4.6 2.1.6 1.4 0 2.2-.7 2.2-1.8 0-2.1-2.9-1.7-2.9-2.7 0-.3.3-.5.8-.5.5 0 1.1.2 1.5.4l.6-1.3zm-6.2-1h-1.6v-2l-1.9.6v1.4H2.2v1.5h1.1v4c0 1.2.8 1.8 2.2 1.8.6 0 1.2-.1 1.6-.3v-1.5c-.3.1-.6.2-.9.2-.6 0-.9-.3-.9-1v-3.2h1.6V3.8z"/></svg>
+                            </span>
+                        </button>
+                        <!-- MoonPay -->
+                        <button class="btn-modal-secondary" id="checkout-moonpay-btn" style="margin-top:0; display:flex; justify-content:flex-start; align-items:center; gap:1.5rem; padding:0.85rem 1rem;">
+                            <span style="display:flex; align-items:center; gap:0.5rem; min-width:140px;">🔑 Pay with Crypto</span>
+                            <span style="display:flex; align-items:center; gap:0.4rem; font-size:0.85rem; font-weight:700; color:#ff007a;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:4px;"><path d="M12 2L2 22h20L12 2z"/></svg>MoonPay
+                            </span>
+                        </button>
+                        <!-- Onramper -->
+                        <button class="btn-modal-secondary" id="checkout-onramper-btn" style="margin-top:0; display:flex; justify-content:flex-start; align-items:center; gap:1.5rem; padding:0.85rem 1rem;">
+                            <span style="display:flex; align-items:center; gap:0.5rem; min-width:140px;">⚡ Pay with Crypto</span>
+                            <span style="display:flex; align-items:center; gap:0.4rem; font-size:0.85rem; font-weight:700; color:#00ffcc;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle; margin-right:4px;"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>Onramper
+                            </span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Console -->
+                <div style="margin-top: 1.25rem;">
+                    <div class="form-label" style="font-size:0.75rem; text-transform:uppercase; opacity:0.8; letter-spacing:0.05em;">Payment Gateway Sandbox Console</div>
+                    <div id="checkout-console" style="background:#05030e; border:1px solid var(--white-10); border-radius:8px; padding:0.75rem; font-family:var(--font-mono); font-size:0.75rem; color:#00D68F; min-height:85px; max-height:120px; overflow-y:auto; line-height:1.5;">
+                        > Web3 Wallet listener active. Select plan and channel to trigger sandbox integration.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== STATUS FOOTER ========== -->
+    <footer class="status-footer">
+        <div class="status-footer-left">
+            <span><span class="status-dot-sm status-dot-green" id="status-dot"></span> <span id="status-chain-name">Ritual Testnet</span></span>
+            <span id="status-block">Block: --</span>
+        </div>
+        <div class="status-footer-right">
+            <span id="status-wallet">Wallet: Not connected</span>
+            <span>v1.0.0</span>
+        </div>
+    </footer>
+
+    <!-- ========== SCRIPTS ========== -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+    <script src="app-main.js"></script>
+    <script>
+    (function() {
+        const modalThemeToggleBtn = document.getElementById('modal-theme-toggle-btn');
+        const settingsBtn = document.getElementById('settings-btn');
+        const settingsModalOverlay = document.getElementById('settings-modal-overlay');
+        const settingsModalClose = document.getElementById('settings-modal-close');
+
+        // Upgrade Modal elements
+        const upgradeTierBtn = document.getElementById('upgrade-tier-btn');
+        const upgradeModalOverlay = document.getElementById('upgrade-modal-overlay');
+        const upgradeModalClose = document.getElementById('upgrade-modal-close');
+        const tierSelectCards = document.querySelectorAll('.tier-select-card');
+        const checkoutConsole = document.getElementById('checkout-console');
+
+        // Payment Buttons
+        const stripeBtn = document.getElementById('checkout-stripe-btn');
+        const moonpayBtn = document.getElementById('checkout-moonpay-btn');
+        const onramperBtn = document.getElementById('checkout-onramper-btn');
+
+        let selectedPlan = { name: 'Lite', price: '0.49' };
+
+        // Load theme state
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'light') {
+            document.documentElement.classList.add('light-mode');
+        }
+
+        // Toggle theme handler
+        modalThemeToggleBtn.addEventListener('click', () => {
+            const isLight = document.documentElement.classList.toggle('light-mode');
+            localStorage.setItem('theme', isLight ? 'light' : 'dark');
+        });
+
+        // Open settings modal
+        settingsBtn.addEventListener('click', () => {
+            settingsModalOverlay.classList.add('active');
+        });
+
+        // Close settings modal
+        settingsModalClose.addEventListener('click', () => {
+            settingsModalOverlay.classList.remove('active');
+        });
+
+        settingsModalOverlay.addEventListener('click', (e) => {
+            if (e.target === settingsModalOverlay) {
+                settingsModalOverlay.classList.remove('active');
+            }
+        });
+
+        // --- SOCIAL INTEGRATIONS ---
+        const twitterBtn = document.getElementById('connect-twitter-btn');
+        const telegramBtn = document.getElementById('connect-telegram-btn');
+        const discordBtn = document.getElementById('connect-discord-btn');
+
+        if (twitterBtn) {
+            twitterBtn.addEventListener('click', () => {
+                if (twitterBtn.textContent === 'Connect') {
+                    const handle = prompt("Enter your Twitter handle to authorize alerts:");
+                    if (handle) {
+                        twitterBtn.textContent = 'Connected';
+                        twitterBtn.style.color = '#10B981';
+                        twitterBtn.style.borderColor = '#10B981';
+                        logConsole(`Twitter account @${handle} connected! Alerts active.`);
+                    }
+                } else {
+                    twitterBtn.textContent = 'Connect';
+                    twitterBtn.style.color = '#1DA1F2';
+                    twitterBtn.style.borderColor = '#1DA1F2';
+                    logConsole(`Twitter account disconnected.`);
+                }
+            });
+        }
+
+        if (telegramBtn) {
+            telegramBtn.addEventListener('click', () => {
+                if (telegramBtn.textContent === 'Connect') {
+                    const username = prompt("Enter your Telegram username to connect RitAlertBot:");
+                    if (username) {
+                        telegramBtn.textContent = 'Connected';
+                        telegramBtn.style.color = '#10B981';
+                        telegramBtn.style.borderColor = '#10B981';
+                        logConsole(`Telegram user @${username} connected! Real-time alerts enabled.`);
+                    }
+                } else {
+                    telegramBtn.textContent = 'Connect';
+                    telegramBtn.style.color = '#0088cc';
+                    telegramBtn.style.borderColor = '#0088cc';
+                    logConsole(`Telegram Bot alert channel disconnected.`);
+                }
+            });
+        }
+
+        if (discordBtn) {
+            discordBtn.addEventListener('click', () => {
+                if (discordBtn.textContent === 'Connect') {
+                    const webhookUrl = prompt("Enter Discord Webhook URL to stream notifications:");
+                    if (webhookUrl) {
+                        discordBtn.textContent = 'Connected';
+                        discordBtn.style.color = '#10B981';
+                        discordBtn.style.borderColor = '#10B981';
+                        logConsole(`Discord Webhook configured successfully! Channels active.`);
+                    }
+                } else {
+                    discordBtn.textContent = 'Connect';
+                    discordBtn.style.color = '#5865F2';
+                    discordBtn.style.borderColor = '#5865F2';
+                    logConsole(`Discord Webhook disconnected.`);
+                }
+            });
+        }
+
+        // --- UPGRADE MODAL ROUTING ---
+        upgradeTierBtn.addEventListener('click', () => {
+            upgradeModalOverlay.classList.add('active');
+            logConsole("Ready. Selected plan: Lite ($0.49/mo)");
+        });
+
+        upgradeModalClose.addEventListener('click', () => {
+            upgradeModalOverlay.classList.remove('active');
+        });
+
+        upgradeModalOverlay.addEventListener('click', (e) => {
+            if (e.target === upgradeModalOverlay) {
+                upgradeModalOverlay.classList.remove('active');
+            }
+        });
+
+        // Tier Selection Card Handlers
+        tierSelectCards.forEach(card => {
+            card.addEventListener('click', () => {
+                tierSelectCards.forEach(c => {
+                    c.style.border = '1px solid var(--white-10)';
+                    c.style.background = 'transparent';
+                });
+                card.style.border = '2px solid var(--ritual-red)';
+                card.style.background = 'var(--bg-hover)';
+
+                selectedPlan.name = card.getAttribute('data-name');
+                selectedPlan.price = card.getAttribute('data-price');
+                logConsole(`Plan updated to: ${selectedPlan.name} ($${selectedPlan.price}/mo)`);
+            });
+        });
+
+        // Console logger helper
+        function logConsole(message) {
+            checkoutConsole.innerHTML = `> ${message}`;
+            checkoutConsole.scrollTop = checkoutConsole.scrollHeight;
+        }
+
+        // --- STRIPE checkout triggers ---
+        stripeBtn.addEventListener('click', () => {
+            logConsole(`Stripe Checkout requested for ${selectedPlan.name} ($${selectedPlan.price}). Querying backend for Stripe session...`);
+            
+            fetch(`/api/payments/stripe-session?planName=${encodeURIComponent(selectedPlan.name)}&price=${selectedPlan.price}`)
+                .then(response => {
+                    if (!response.ok) throw new Error("Backend Stripe session creation failed");
+                    return response.json();
+                })
+                .then(data => {
+                    logConsole(`Stripe Session created successfully! Redirecting...`);
+                    setTimeout(() => {
+                        window.open(data.url, 'Stripe Sandbox Checkout', 'width=600,height=700');
+                    }, 600);
+                })
+                .catch(error => {
+                    logConsole(`Error: ${error.message}. Please verify server.js is active.`);
+                });
+        });
+
+        // --- MOONPAY checkout triggers ---
+        moonpayBtn.addEventListener('click', () => {
+            const walletBtn = document.getElementById('wallet-btn');
+            const targetAddress = walletBtn.getAttribute('data-full-address') || '0x03eA261b6d93d2Efd6FA11D2AAbEC8501F5b394E';
+            
+            logConsole(`MoonPay Widget requested. Querying backend for secure signature...`);
+            
+            fetch(`/api/payments/moonpay-url?walletAddress=${targetAddress}&currencyCode=usdc`)
+                .then(response => {
+                    if (!response.ok) throw new Error("Backend URL signing failed");
+                    return response.json();
+                })
+                .then(data => {
+                    logConsole(`Signature verified! Launching sandbox portal.`);
+                    setTimeout(() => {
+                        window.open(data.url, 'MoonPay Sandbox', 'width=500,height=700');
+                    }, 600);
+                })
+                .catch(error => {
+                    logConsole(`Error: ${error.message}. Please verify server.js is active.`);
+                });
+        });
+
+        // --- ONRAMPER checkout triggers ---
+        onramperBtn.addEventListener('click', () => {
+            const walletBtn = document.getElementById('wallet-btn');
+            const targetAddress = walletBtn.getAttribute('data-full-address') || '0x03eA261b6d93d2Efd6FA11D2AAbEC8501F5b394E';
+
+            logConsole(`Onramper Hub requested. Querying backend for secure signature...`);
+            
+            fetch(`/api/payments/onramper-url?walletAddress=${targetAddress}`)
+                .then(response => {
+                    if (!response.ok) throw new Error("Backend URL signing failed");
+                    return response.json();
+                })
+                .then(data => {
+                    logConsole(`Signature verified! Launching sandbox portal.`);
+                    setTimeout(() => {
+                        window.open(data.url, 'Onramper Sandbox', 'width=500,height=700');
+                    }, 600);
+                })
+                .catch(error => {
+                    logConsole(`Error: ${error.message}. Please verify server.js is active.`);
+                });
+        });
+
+        // Check for active free trial in URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        let hasActiveAccess = false;
+        let lastCheckedAddress = null;
+
+        // Connect wallet click from Paywall
+        document.getElementById('paywall-connect-btn').addEventListener('click', () => {
+            document.getElementById('wallet-btn').click();
+        });
+
+        // Paywall tier select helpers
+        const paywallTiers = {
+            'paywall-tier-lite': { name: 'Lite', price: '0.49' },
+            'paywall-tier-pro': { name: 'Pro', price: '1.99' },
+            'paywall-tier-sovereign': { name: 'Sovereign', price: '4.99' }
+        };
+
+        Object.keys(paywallTiers).forEach(id => {
+            document.getElementById(id).addEventListener('click', () => {
+                Object.keys(paywallTiers).forEach(k => {
+                    const card = document.getElementById(k);
+                    card.style.border = '1px solid var(--white-10)';
+                    card.style.background = 'transparent';
+                    card.classList.remove('active');
+                });
+                const selectedCard = document.getElementById(id);
+                selectedCard.style.border = '2px solid var(--ritual-red)';
+                selectedCard.style.background = 'var(--bg-hover)';
+                selectedCard.classList.add('active');
+                
+                selectedPlan.name = paywallTiers[id].name;
+                selectedPlan.price = paywallTiers[id].price;
+                logConsole(`Plan selected on paywall: ${selectedPlan.name} ($${selectedPlan.price}/mo)`);
+            });
+        });
+
+        // Paywall checkout trigger
+        document.getElementById('paywall-checkout-btn').addEventListener('click', () => {
+            document.getElementById('upgrade-tier-btn').click();
+        });
+
+        // Helper to set social button state
+        function setSocialButtonState(id, text, color, borderColor) {
+            const btn = document.getElementById(id);
+            if (btn) {
+                btn.textContent = text;
+                btn.style.color = color;
+                btn.style.borderColor = borderColor || color;
+            }
+        }
+
+        // Helper to query and load connected socials from DB
+        function loadSocialConnections(address) {
+            fetch(`/api/db/socials?walletAddress=${address}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.socials) {
+                        const s = data.socials;
+                        if (s.twitter_handle) {
+                            setSocialButtonState('connect-twitter-btn', 'Connected', '#10B981', '#10B981');
+                        } else {
+                            setSocialButtonState('connect-twitter-btn', 'Connect', '#1DA1F2', '#1DA1F2');
+                        }
+                        if (s.telegram_username) {
+                            setSocialButtonState('connect-telegram-btn', 'Connected', '#10B981', '#10B981');
+                        } else {
+                            setSocialButtonState('connect-telegram-btn', 'Connect', '#0088cc', '#0088cc');
+                        }
+                        if (s.discord_webhook) {
+                            setSocialButtonState('connect-discord-btn', 'Connected', '#10B981', '#10B981');
+                        } else {
+                            setSocialButtonState('connect-discord-btn', 'Connect', '#5865F2', '#5865F2');
+                        }
+                    }
+                })
+                .catch(err => console.error("Error loading socials:", err));
+        }
+
+        // DB save socials helper
+        function saveSocialConnection(platform, value, btnId, defaultColor) {
+            const walletBtn = document.getElementById('wallet-btn');
+            const address = walletBtn.getAttribute('data-full-address');
+            if (!address) return;
+
+            fetch('/api/db/save-socials', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ walletAddress: address, platform, handleValue: value })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    if (value) {
+                        setSocialButtonState(btnId, 'Connected', '#10B981', '#10B981');
+                        logConsole(`${platform} successfully linked in database.`);
+                    } else {
+                        setSocialButtonState(btnId, 'Connect', defaultColor, defaultColor);
+                        logConsole(`${platform} link removed.`);
+                    }
+                }
+            })
+            .catch(err => console.error("Error saving socials:", err));
+        }
+
+        // Attach DB saves to connect buttons
+        document.getElementById('connect-twitter-btn').addEventListener('click', () => {
+            const btn = document.getElementById('connect-twitter-btn');
+            if (btn.textContent === 'Connect') {
+                const handle = prompt("Enter your Twitter handle:");
+                if (handle) saveSocialConnection('twitter', handle, 'connect-twitter-btn', '#1DA1F2');
+            } else {
+                saveSocialConnection('twitter', null, 'connect-twitter-btn', '#1DA1F2');
+            }
+        });
+
+        document.getElementById('connect-telegram-btn').addEventListener('click', () => {
+            const btn = document.getElementById('connect-telegram-btn');
+            if (btn.textContent === 'Connect') {
+                const handle = prompt("Enter Telegram username:");
+                if (handle) saveSocialConnection('telegram', handle, 'connect-telegram-btn', '#0088cc');
+            } else {
+                saveSocialConnection('telegram', null, 'connect-telegram-btn', '#0088cc');
+            }
+        });
+
+        document.getElementById('connect-discord-btn').addEventListener('click', () => {
+            const btn = document.getElementById('connect-discord-btn');
+            if (btn.textContent === 'Connect') {
+                const webhook = prompt("Enter Discord Webhook URL:");
+                if (webhook) saveSocialConnection('discord', webhook, 'connect-discord-btn', '#5865F2');
+            } else {
+                saveSocialConnection('discord', null, 'connect-discord-btn', '#5865F2');
+            }
+        });
+
+        // Function to trigger trial activation
+        function activateTrial(address) {
+            logConsole("Activating 7-day free trial on database...");
+            fetch('/api/db/activate-trial', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ walletAddress: address })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    const banner = document.getElementById('trial-banner');
+                    if (banner) banner.style.display = 'block';
+                    document.getElementById('paywall-overlay').style.display = 'none';
+                    hasActiveAccess = true;
+                    logConsole("Welcome! Your 7-day free trial has been activated. Explore all Pro features.");
+                } else {
+                    logConsole("Failed to activate free trial on database.");
+                }
+            })
+            .catch(err => console.error("Error activating trial:", err));
+        }
+
+        // Paywall Trial activate trigger
+        document.getElementById('paywall-trial-btn').addEventListener('click', () => {
+            const walletBtn = document.getElementById('wallet-btn');
+            const address = walletBtn.getAttribute('data-full-address');
+            if (address) {
+                activateTrial(address);
+            }
+        });
+
+        // Monitor Wallet Connection State to Update Paywall Screen
+        function watchWalletConnection() {
+            const walletBtn = document.getElementById('wallet-btn');
+            const paywallOverlay = document.getElementById('paywall-overlay');
+            const connectBtn = document.getElementById('paywall-connect-btn');
+            const upgradeOptions = document.getElementById('paywall-upgrade-options');
+            const title = document.getElementById('paywall-title');
+            const desc = document.getElementById('paywall-desc');
+
+            setInterval(() => {
+                const hasAddress = walletBtn.getAttribute('data-full-address');
+                
+                if (hasAddress) {
+                    if (hasAddress !== lastCheckedAddress) {
+                        lastCheckedAddress = hasAddress;
+                        logConsole(`Connecting wallet ${hasAddress.substring(0, 6)}...`);
+                        
+                        // Check if URL parameters request auto trial activation
+                        if (urlParams.get('trial') === 'true') {
+                            activateTrial(hasAddress);
+                            loadSocialConnections(hasAddress);
+                            return;
+                        }
+
+                        // Query backend database for subscription status
+                        fetch(`/api/db/subscription?walletAddress=${hasAddress}`)
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data.subscription && data.subscription.active) {
+                                    logConsole(`Active access verified! Tier: ${data.subscription.tier}. Welcome back.`);
+                                    paywallOverlay.style.display = 'none';
+                                    hasActiveAccess = true;
+
+                                    if (data.subscription.tier === 'Pro' && data.subscription.trial_start) {
+                                        const banner = document.getElementById('trial-banner');
+                                        if (banner) banner.style.display = 'block';
+                                    }
+                                } else {
+                                    logConsole(`No active subscription found. Paywall active.`);
+                                    connectBtn.style.display = 'none';
+                                    upgradeOptions.style.display = 'block';
+                                    title.textContent = "Plan or Trial Required";
+                                    desc.textContent = "Your wallet is connected! Now, choose a subscription plan or activate your 7-day free trial to unlock your AI tracking agent.";
+                                    paywallOverlay.style.display = 'flex';
+                                    hasActiveAccess = false;
+                                }
+                                loadSocialConnections(hasAddress);
+                            })
+                            .catch(err => console.error("Error querying subscription status:", err));
+                    }
+                } else {
+                    lastCheckedAddress = null;
+                    connectBtn.style.display = 'block';
+                    upgradeOptions.style.display = 'none';
+                    title.textContent = "Connect Wallet to Access";
+                    desc.textContent = "Connect your Web3 wallet to authorize your account and unlock the RitAlert AI tracking agent.";
+                    paywallOverlay.style.display = 'flex';
+                    hasActiveAccess = false;
+                }
+            }, 1000);
+        }
+        watchWalletConnection();
+
+    })();
+    </script>
+</body>
+</html>

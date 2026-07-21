@@ -1,0 +1,1421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RitAlert — AI-Powered On-Chain Alert Agent</title>
+    <meta name="description" content="Track every wallet and token movement across Ritual, Ethereum, BSC, and more. AI-powered real-time alerts delivered to your Telegram.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* ========== RESET & BASE ========== */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            /* Dark Mode Colors (Default) - Ritual Inspired */
+            --bg-dark: #070414;
+            --bg-card: rgba(16, 12, 35, 0.55);
+            --nav-bg: rgba(7, 4, 20, 0.65);
+            --ritual-red: #9D5CFF;       /* Brighter Neon Purple */
+            --ritual-orange: #3B82F6;    /* Brighter Royal Blue */
+            --ritual-ember: #EC4899;     /* Neon Pink */
+            --white: #FFFFFF;            /* Always absolute white */
+            
+            --text-primary: #FFFFFF;
+            --text-80: rgba(255,255,255,0.8);
+            --text-60: rgba(255,255,255,0.6);
+            --text-40: rgba(255,255,255,0.4);
+            --text-20: rgba(255,255,255,0.2);
+            --text-10: rgba(255,255,255,0.1);
+            --text-05: rgba(255,255,255,0.05);
+            --text-03: rgba(255,255,255,0.03);
+            
+            --border-color: rgba(255, 255, 255, 0.05);
+            --border-hover: rgba(157, 92, 255, 0.45);
+            
+            --font-heading: 'Outfit', sans-serif;
+            --font-body: 'Inter', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        :root.light-mode {
+            /* Light Mode Colors */
+            --bg-dark: #F7F6FC;
+            --bg-card: rgba(255, 255, 255, 0.85);
+            --nav-bg: rgba(247, 246, 252, 0.85);
+            --ritual-red: #8B5CF6;       /* Bright Purple */
+            --ritual-orange: #2563EB;    /* Rich Blue */
+            --ritual-ember: #EC4899;     /* Pink */
+            --white: #FFFFFF;            /* Keep absolute white for gradient button texts */
+            
+            --text-primary: #0F0F14;
+            --text-80: rgba(15, 15, 20, 0.8);
+            --text-60: rgba(15, 15, 20, 0.6);
+            --text-40: rgba(15, 15, 20, 0.4);
+            --text-20: rgba(15, 15, 20, 0.2);
+            --text-10: rgba(15, 15, 20, 0.1);
+            --text-05: rgba(15, 15, 20, 0.05);
+            --text-03: rgba(15, 15, 20, 0.03);
+            
+            --border-color: rgba(15, 15, 20, 0.08);
+            --border-hover: rgba(139, 92, 246, 0.6);
+        }
+
+        html, body {
+            height: 100%;
+            overflow-x: hidden;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            transition: background 0.3s ease, color 0.3s ease;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-dark); }
+        ::-webkit-scrollbar-thumb { background: rgba(255,77,0,0.3); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--ritual-red); }
+
+        /* ========== NAVIGATION ========== */
+        .nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            padding: 1.25rem 3rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--nav-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-color);
+            transition: background 0.3s ease, border-color 0.3s ease;
+        }
+
+        .nav-logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+
+        .nav-logo svg { width: 34px; height: 34px; }
+
+        .nav-logo-text {
+            font-family: var(--font-heading);
+            font-weight: 800;
+            font-size: 1.3rem;
+            background: linear-gradient(135deg, var(--ritual-red) 0%, var(--ritual-orange) 50%, var(--text-primary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 2.5rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text-60);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            letter-spacing: 0.01em;
+            transition: var(--transition);
+            position: relative;
+        }
+
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--ritual-red);
+            transition: width 0.3s ease;
+        }
+
+        .nav-links a:hover { color: var(--text-primary); }
+        .nav-links a:hover::after { width: 100%; }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .nav-chain-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0.9rem;
+            border-radius: 20px;
+            background: var(--text-05);
+            border: 1px solid var(--text-10);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--ritual-orange);
+            cursor: default;
+            transition: background 0.3s ease, border-color 0.3s ease;
+        }
+
+        .chain-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--ritual-red);
+            box-shadow: 0 0 8px var(--ritual-red);
+            animation: chainPulse 2s infinite;
+        }
+
+        @keyframes chainPulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 6px var(--ritual-red); }
+            50% { opacity: 0.5; box-shadow: 0 0 12px var(--ritual-orange); }
+        }
+
+        .btn-connect {
+            padding: 0.55rem 1.4rem;
+            border-radius: 8px;
+            border: 1px solid var(--text-20);
+            background: transparent;
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .btn-connect:hover {
+            background: var(--text-10);
+            border-color: var(--text-40);
+        }
+
+        /* ========== HERO SPLIT ========== */
+        .hero {
+            display: flex;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        /* Subtle background pattern */
+        .hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(var(--white-03) 1px, transparent 1px),
+                linear-gradient(90deg, var(--white-03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .left-pane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 8rem 4rem 3rem 4rem;
+            position: relative;
+            z-index: 2;
+        }
+
+        /* Divider line */
+        .divider {
+            width: 1px;
+            background: linear-gradient(
+                180deg,
+                transparent 0%,
+                var(--white-10) 20%,
+                var(--white-20) 50%,
+                var(--white-10) 80%,
+                transparent 100%
+            );
+            position: relative;
+            z-index: 3;
+        }
+
+        .right-pane {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: var(--bg-primary) !important;
+            transition: background 0.3s ease;
+        }
+
+        .right-pane canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Radial backlight glow behind visualization */
+        .right-pane::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 500px;
+            height: 500px;
+            transform: translate(-50%, -50%);
+            background: radial-gradient(circle, rgba(255,77,0,0.15) 0%, rgba(255,140,0,0.05) 40%, transparent 70%);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* ========== LEFT PANE CONTENT ========== */
+        .overline {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            font-weight: 500;
+            letter-spacing: 0.25em;
+            color: var(--ritual-orange);
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .overline-bar {
+            width: 32px;
+            height: 2px;
+            background: linear-gradient(90deg, var(--ritual-red), var(--ritual-orange));
+        }
+
+        .headline {
+            font-family: var(--font-heading);
+            font-size: clamp(2.8rem, 5vw, 4.5rem);
+            font-weight: 900;
+            line-height: 1.05;
+            margin-bottom: 0.4rem;
+            letter-spacing: -0.03em;
+        }
+
+        .headline-sub {
+            font-family: var(--font-heading);
+            font-size: clamp(2.8rem, 5vw, 4.5rem);
+            font-weight: 900;
+            line-height: 1.05;
+            letter-spacing: -0.03em;
+            background: linear-gradient(135deg, var(--ritual-red) 0%, var(--ritual-orange) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 1.75rem;
+        }
+
+        .hero-description {
+            font-size: 1.05rem;
+            color: var(--white-60);
+            line-height: 1.7;
+            max-width: 480px;
+            margin-bottom: 2.5rem;
+        }
+
+        /* ========== BUTTONS ========== */
+        .btn-group {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: auto;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.85rem 1.75rem;
+            border-radius: 10px;
+            font-family: var(--font-heading);
+            font-weight: 700;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: var(--transition);
+            text-decoration: none;
+            border: none;
+            outline: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--ritual-red) 0%, var(--ritual-orange) 100%);
+            color: var(--white);
+            box-shadow: 0 4px 24px rgba(255, 77, 0, 0.35);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 6px 32px rgba(255, 77, 0, 0.55);
+            transform: translateY(-2px);
+        }
+
+        .btn-primary .btn-arrow {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            font-size: 0.85rem;
+            transition: var(--transition);
+        }
+
+        .btn-primary:hover .btn-arrow { background: rgba(255,255,255,0.35); }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--text-20);
+        }
+
+        .btn-outline:hover {
+            background: var(--text-10);
+            border-color: var(--text-40);
+            transform: translateY(-1px);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-60);
+            padding: 0.85rem 1rem;
+        }
+
+        .btn-ghost:hover { color: var(--text-primary); }
+
+        .btn-ghost .doc-icon {
+            width: 18px;
+            height: 18px;
+            border-radius: 3px;
+            border: 1.5px solid var(--text-40);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.6rem;
+        }
+
+        /* ========== STATS ROW ========== */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1px;
+            margin-top: 3rem;
+            background: var(--text-10);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .stat-box {
+            padding: 1.25rem 1rem;
+            background: var(--bg-card);
+            text-align: center;
+        }
+
+        .stat-box:first-child { border-radius: 12px 0 0 12px; }
+        .stat-box:last-child { border-radius: 0 12px 12px 0; }
+
+        .stat-value {
+            font-family: var(--font-heading);
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--text-primary) 30%, var(--ritual-orange) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat-label {
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            color: var(--white-40);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-top: 0.3rem;
+        }
+
+        /* ========== HUD LABELS ========== */
+        .hud-label {
+            position: absolute;
+            z-index: 10;
+            padding: 0.5rem 1rem;
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: var(--text-primary);
+            pointer-events: none;
+            white-space: nowrap;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .hud-label::before {
+            content: '[ ';
+            color: var(--ritual-red);
+            font-weight: 700;
+        }
+
+        .hud-label::after {
+            content: ' ]';
+            color: var(--ritual-red);
+            font-weight: 700;
+        }
+
+        .hud-label .hud-val {
+            color: var(--ritual-orange);
+            font-weight: 500;
+        }
+
+        .hud-1 { top: 18%; right: 10%; animation: hudFloat1 6s ease-in-out infinite; }
+        .hud-2 { top: 38%; left: 8%; animation: hudFloat2 7s ease-in-out infinite; }
+        .hud-3 { bottom: 30%; right: 12%; animation: hudFloat3 5s ease-in-out infinite; }
+        .hud-4 { bottom: 14%; left: 15%; animation: hudFloat4 8s ease-in-out infinite; }
+
+        @keyframes hudFloat1 { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+        @keyframes hudFloat2 { 0%,100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
+        @keyframes hudFloat3 { 0%,100% { transform: translateX(0); } 50% { transform: translateX(-6px); } }
+        @keyframes hudFloat4 { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+
+        /* ========== CONNECTING DOTS (HUD to structure) ========== */
+        .hud-dot {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--ritual-red);
+            box-shadow: 0 0 10px var(--ritual-red);
+            animation: dotPulse 2s infinite;
+        }
+
+        @keyframes dotPulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.6); opacity: 0.5; }
+        }
+
+        /* ========== RESPONSIVE ========== */
+        @media (max-width: 1024px) {
+            .hero { flex-direction: column; }
+            .left-pane { padding: 7rem 2rem 2rem; }
+            .right-pane { min-height: 50vh; }
+            .divider { width: 100%; height: 1px; }
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+            .nav { padding: 1rem 1.5rem; }
+            .nav-links { display: none; }
+        }
+
+        @media (max-width: 640px) {
+            .headline, .headline-sub { font-size: 2.2rem; }
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+            .btn-group { flex-direction: column; }
+            .left-pane { padding: 6rem 1.5rem 2rem; }
+        }
+
+        /* ========== ENTRANCE ANIMATIONS ========== */
+        .fade-up {
+            opacity: 0;
+            transform: translateY(24px);
+            animation: fadeUp 0.8s ease-out forwards;
+        }
+
+        .fade-up-d1 { animation-delay: 0.1s; }
+        .fade-up-d2 { animation-delay: 0.25s; }
+        .fade-up-d3 { animation-delay: 0.4s; }
+        .fade-up-d4 { animation-delay: 0.55s; }
+        .fade-up-d5 { animation-delay: 0.7s; }
+
+        @keyframes fadeUp {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ========== PRICING SECTION ========== */
+        .pricing-section {
+            padding: 8rem 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 10;
+        }
+
+        .pricing-title {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .pricing-title h2 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--text-primary) 30%, var(--ritual-orange) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 1rem;
+        }
+
+        .pricing-title p {
+            color: var(--text-60);
+            font-size: 1rem;
+        }
+
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+        }
+
+        .pricing-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 2.5rem 2rem;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            transition: var(--transition);
+        }
+
+        .pricing-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--ritual-red);
+            box-shadow: 0 8px 30px rgba(255, 77, 0, 0.15);
+        }
+
+        .pricing-card.popular {
+            border-color: var(--ritual-orange);
+            box-shadow: 0 4px 24px rgba(255, 140, 0, 0.1);
+        }
+
+        .pricing-card.popular::before {
+            content: 'POPULAR';
+            position: absolute;
+            top: 1.25rem;
+            right: 1.5rem;
+            background: linear-gradient(135deg, var(--ritual-red), var(--ritual-orange));
+            color: var(--white);
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            font-weight: 700;
+            padding: 0.25rem 0.6rem;
+            border-radius: 20px;
+            letter-spacing: 0.05em;
+        }
+
+        .tier-name {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--white-40);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 1rem;
+        }
+
+        .tier-price {
+            font-family: var(--font-heading);
+            font-size: 3rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            line-height: 1;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: baseline;
+        }
+
+        .tier-price span {
+            font-size: 1rem;
+            color: var(--text-40);
+            font-weight: 500;
+            margin-left: 0.25rem;
+        }
+
+        .tier-features {
+            list-style: none;
+            margin-bottom: 2rem;
+            flex-grow: 1;
+        }
+
+        .tier-features li {
+            font-size: 0.9rem;
+            color: var(--white-60);
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-align: left;
+        }
+
+        .tier-features li::before {
+            content: '✓';
+            color: var(--ritual-orange);
+            font-weight: 700;
+        }
+
+        .pricing-card .btn {
+            width: 100%;
+            text-align: center;
+            justify-content: center;
+            margin-top: auto;
+        }
+
+        @media (max-width: 900px) {
+            .pricing-grid { grid-template-columns: 1fr; }
+            .pricing-section { padding: 4rem 1.5rem; }
+        }
+
+        /* ========== FEATURES SECTION ========== */
+        .features-section {
+            padding: 8rem 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 10;
+            text-align: center;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+            margin-top: 4rem;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 3rem 2rem;
+            transition: var(--transition);
+            text-align: left;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--ritual-orange);
+            box-shadow: 0 8px 30px rgba(255, 140, 0, 0.15);
+        }
+
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            display: inline-block;
+        }
+
+        .feature-card h3 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+        }
+
+        .feature-card p {
+            color: var(--text-60);
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        /* ========== INTEGRATIONS SECTION ========== */
+        .integrations-section {
+            padding: 8rem 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 10;
+            text-align: center;
+        }
+
+        .integrations-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+            margin-top: 4rem;
+        }
+
+        .integration-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 2.5rem 2rem;
+            transition: var(--transition);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .integration-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--white-30);
+            box-shadow: 0 8px 30px rgba(255, 255, 255, 0.05);
+        }
+
+        .integration-icon {
+            font-size: 3rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .integration-card h3 {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.75rem;
+        }
+
+        .integration-card p {
+            color: var(--text-60);
+            font-size: 0.85rem;
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+            text-align: center;
+        }
+
+        .integration-card .btn {
+            width: 100%;
+            text-align: center;
+            justify-content: center;
+        }
+
+        @media (max-width: 900px) {
+            .features-grid, .integrations-grid { grid-template-columns: 1fr; }
+            .features-section, .integrations-section { padding: 4rem 1.5rem; }
+        }
+
+        /* ========== THEME TOGGLE ========== */
+        .theme-toggle {
+            background: var(--text-05);
+            border: 1px solid var(--text-10);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition);
+            color: var(--text-primary);
+            font-size: 1rem;
+            outline: none;
+        }
+
+        .theme-toggle:hover {
+            border-color: var(--border-hover);
+            background: var(--text-10);
+        }
+
+        .theme-toggle .theme-icon-sun { display: none; }
+        .theme-toggle .theme-icon-moon { display: block; }
+
+        :root.light-mode .theme-toggle .theme-icon-sun { display: block; }
+        :root.light-mode .theme-toggle .theme-icon-moon { display: none; }
+    </style>
+</head>
+<body>
+
+    <!-- ========== NAVIGATION ========== -->
+    <nav class="nav">
+        <a href="#" class="nav-logo">
+            <svg viewBox="0 0 220 220" width="34" height="34">
+                <path d="M 115 25 L 60 80 L 115 135 L 170 80" fill="none" stroke="var(--ritual-red)" stroke-width="12" stroke-linecap="square" />
+                <path d="M 100 40 L 45 95 L 100 150 L 155 95" fill="none" stroke="var(--ritual-ember)" stroke-width="12" stroke-linecap="square" />
+                <rect x="180" y="45" width="12" height="12" fill="var(--ritual-ember)" transform="rotate(45 186 51)" />
+                <rect x="198" y="27" width="12" height="12" fill="var(--ritual-ember)" transform="rotate(45 204 33)" />
+            </svg>
+            <span class="nav-logo-text">ritalert</span>
+        </a>
+
+        <ul class="nav-links">
+            <li><a href="#" class="home-link">Home</a></li>
+            <li><a href="#features">Features</a></li>
+            <li><a href="#pricing">Pricing</a></li>
+            <li><a href="#integrations">Integrations</a></li>
+            <li><a href="#">Docs</a></li>
+        </ul>
+
+        <div class="nav-right">
+            <div class="nav-chain-badge">
+                <span class="chain-dot"></span>
+                RITUAL TESTNET
+            </div>
+            <button class="btn-connect" id="connect-wallet-btn" onclick="window.location.href='app.html'">Connect Wallet</button>
+            <button class="theme-toggle" id="theme-toggle-btn" aria-label="Toggle theme" style="margin-left: 0.75rem;">
+                <span class="theme-icon-sun">☀️</span>
+                <span class="theme-icon-moon">🌙</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- ========== HERO SECTION ========== -->
+    <main class="hero">
+
+        <!-- LEFT PANE -->
+        <div class="left-pane">
+            <div class="overline fade-up fade-up-d1">
+                <span class="overline-bar"></span>
+                STAY CONNECTED AND STAY ALERTED
+            </div>
+
+            <h1 class="headline fade-up fade-up-d2">Track Every Move</h1>
+            <h1 class="headline-sub fade-up fade-up-d2">On-Chain.</h1>
+
+            <p class="hero-description fade-up fade-up-d3">
+                Monitor any wallet address or smart contract across multiple blockchains. 
+                RitAlert's AI agent detects movements, token transfers, and liquidation events 
+                in real time and sends you instant alerts via Telegram, Discord, and push notifications.
+            </p>
+
+            <div class="btn-group fade-up fade-up-d4">
+                <a href="app.html" class="btn btn-primary">
+                    Launch App
+                    <span class="btn-arrow">→</span>
+                </a>
+                <a href="#pricing" class="btn btn-outline">Get Premium</a>
+                <a href="#" class="btn btn-ghost">
+                    <span class="doc-icon">📄</span>
+                    Read Docs
+                </a>
+            </div>
+
+            <div class="stats-row fade-up fade-up-d5">
+                <div class="stat-box">
+                    <div class="stat-value">6+</div>
+                    <div class="stat-label">Chains</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value">50K+</div>
+                    <div class="stat-label">Alerts Sent</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value">10K+</div>
+                    <div class="stat-label">Trackers</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value">99.9%</div>
+                    <div class="stat-label">Uptime</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DIVIDER -->
+        <div class="divider"></div>
+
+        <!-- RIGHT PANE -->
+        <div class="right-pane">
+            <canvas id="viz"></canvas>
+
+            <!-- HUD Labels -->
+            <div class="hud-label hud-1">MULTI-CHAIN SCANNER <span class="hud-val">ACTIVE</span></div>
+            <div class="hud-label hud-2">TEE ENCLAVE <span class="hud-val">SECURED</span></div>
+            <div class="hud-label hud-3">ALERT ENGINE <span class="hud-val">v2.1</span></div>
+            <div class="hud-label hud-4">AI AGENT CORE <span class="hud-val">LIVE</span></div>
+        </div>
+
+    </main>
+
+    <!-- ========== FEATURES SECTION ========== -->
+    <section class="features-section" id="features">
+        <div class="pricing-title">
+            <h2>Core Features</h2>
+            <p>High-performance tracking powered by AI and decentralized execution</p>
+        </div>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <span class="feature-icon">🔍</span>
+                <h3>Real-Time Tracking</h3>
+                <p>Track wallet balances, incoming/outgoing token transfers, token swaps, and smart contract calls across multiple EVM chains instantly.</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">🤖</span>
+                <h3>AI-Powered Audits</h3>
+                <p>Use our integrated LLM agent to audit address behaviors, calculate wallet risk rankings, and dissect complex smart contract interactions in natural language.</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">🛡️</span>
+                <h3>TEE Enclave Security</h3>
+                <p>Your tracking configurations and triggers execute securely inside hardware-shielded Trusted Execution Environments (TEEs) for ultimate privacy.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== INTEGRATIONS SECTION ========== -->
+    <section class="integrations-section" id="integrations">
+        <div class="pricing-title">
+            <h2>Supported Integrations</h2>
+            <p>Get notified instantly on the communication channels you use daily</p>
+        </div>
+
+        <div class="integrations-grid">
+            <div class="integration-card">
+                <span class="integration-icon">✈️</span>
+                <h3>Telegram Alerts</h3>
+                <p>Get one-click copyable chat alerts directly to your personal chat or group channel via @ritalert_bot.</p>
+                <a href="https://t.me/ritalert_bot" target="_blank" class="btn btn-outline">Connect Bot ↗</a>
+            </div>
+            <div class="integration-card">
+                <span class="integration-icon">💬</span>
+                <h3>Discord Webhooks</h3>
+                <p>Receive styled rich embeds posted straight to your designated Discord server channels using Webhooks.</p>
+                <a href="app.html" class="btn btn-outline">Setup Webhook</a>
+            </div>
+            <div class="integration-card">
+                <span class="integration-icon">🔔</span>
+                <h3>Browser Push</h3>
+                <p>Stay updated with instant native desktop push notifications even when the RitAlert web app is closed.</p>
+                <a href="app.html" class="btn btn-outline">Enable Push</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== PRICING SECTION ========== -->
+    <section class="pricing-section" id="pricing">
+        <div class="pricing-title">
+            <h2>Pricing Plans</h2>
+            <p>Choose the level of coverage that suits your tracking needs</p>
+        </div>
+
+        <div class="pricing-grid">
+            <!-- Lite Tier -->
+            <div class="pricing-card">
+                <div class="tier-name">Lite</div>
+                <div class="tier-price">$0.49<span>/mo</span></div>
+                <ul class="tier-features">
+                    <li>Track up to 1 address</li>
+                    <li>Telegram alert channel</li>
+                    <li>Hourly scheduled audits</li>
+                    <li>Standard support</li>
+                </ul>
+                <a href="app.html" class="btn btn-outline">Choose Lite</a>
+            </div>
+
+            <!-- Pro Tier (Popular) -->
+            <div class="pricing-card popular">
+                <div class="tier-name">Pro</div>
+                <div class="tier-price">$1.99<span>/mo</span></div>
+                <ul class="tier-features">
+                    <li>Track up to 5 addresses</li>
+                    <li>Telegram & Discord alerts</li>
+                    <li>Real-time audits (TEE enclaves)</li>
+                    <li>Priority support</li>
+                </ul>
+                <a href="app.html" class="btn btn-primary">Go Pro</a>
+            </div>
+
+            <!-- Sovereign Tier -->
+            <div class="pricing-card">
+                <div class="tier-name">Sovereign</div>
+                <div class="tier-price">$4.99<span>/mo</span></div>
+                <ul class="tier-features">
+                    <li>Track unlimited addresses</li>
+                    <li>All alert channels (Push, TG, Discord)</li>
+                    <li>Instant enclave audits</li>
+                    <li>Custom AI sovereign prompts</li>
+                    <li>24/7 Priority VIP support</li>
+                </ul>
+                <a href="app.html" class="btn btn-outline">Go Sovereign</a>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 3rem; margin-bottom: 1rem;">
+            <p style="color: var(--text-60); font-size: 0.9rem; margin-bottom: 0.5rem;">Want to test the app first?</p>
+            <a href="app.html?trial=true" class="btn btn-outline" style="border-color: var(--ritual-red); color: var(--ritual-orange); padding: 0.65rem 2.5rem; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 600; transition: all 0.3s ease;">
+                🎁 Start 7-Day Free Trial
+            </a>
+            <p style="font-size: 0.75rem; color: var(--text-40); margin-top: 0.5rem;">Access all tracking features free for 7 days. No wallet connection or checkout required.</p>
+        </div>
+    </section>
+
+    <!-- ========== PARTICLE SYSTEM ========== -->
+    <script>
+    (function() {
+        'use strict';
+
+        const canvas = document.getElementById('viz');
+        const ctx = canvas.getContext('2d');
+
+        let W, H, cx, cy;
+        let time = 0;
+        let mouseX = 0.5, mouseY = 0.5;
+
+        // Colors
+        let RED, ORANGE, WHITE, EMBER;
+        window.updateThemeColors = function() {
+            const isLight = document.documentElement.classList.contains('light-mode');
+            if (isLight) {
+                RED = [109, 40, 217];    // Deep vibrant purple (legible on white)
+                ORANGE = [29, 78, 216]; // Deep vibrant blue
+                WHITE = [15, 15, 20];    // Dark gray structure lines
+                EMBER = [190, 24, 74];  // Deep vibrant rose
+            } else {
+                RED = [157, 92, 255];   // Neon purple
+                ORANGE = [59, 130, 246]; // Neon blue
+                WHITE = [255, 255, 255]; // Bright white structure lines
+                EMBER = [244, 63, 94];   // Neon rose
+            }
+        };
+        window.updateThemeColors();
+
+        function resize() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            W = rect.width;
+            H = rect.height;
+            canvas.width = W * dpr;
+            canvas.height = H * dpr;
+            canvas.style.width = W + 'px';
+            canvas.style.height = H + 'px';
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            cx = W / 2;
+            cy = H / 2;
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Mouse tracking for subtle parallax
+        canvas.parentElement.addEventListener('mousemove', (e) => {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            mouseX = (e.clientX - rect.left) / rect.width;
+            mouseY = (e.clientY - rect.top) / rect.height;
+        });
+
+        // ===== 3D MATH =====
+        function rotateX(p, a) {
+            const c = Math.cos(a), s = Math.sin(a);
+            return [p[0], p[1]*c - p[2]*s, p[1]*s + p[2]*c];
+        }
+        function rotateY(p, a) {
+            const c = Math.cos(a), s = Math.sin(a);
+            return [p[0]*c + p[2]*s, p[1], -p[0]*s + p[2]*c];
+        }
+        function rotateZ(p, a) {
+            const c = Math.cos(a), s = Math.sin(a);
+            return [p[0]*c - p[1]*s, p[0]*s + p[1]*c, p[2]];
+        }
+
+        function project(p) {
+            const fov = 600;
+            const scale = fov / (fov + p[2] + 200);
+            return {
+                x: p[0] * scale + cx + (mouseX - 0.5) * 20,
+                y: p[1] * scale + cy + (mouseY - 0.5) * 20,
+                s: scale
+            };
+        }
+
+        // ===== STRUCTURE: CUBE + OCTAHEDRON =====
+        const cubeSize = 75;
+        const cubeVerts = [
+            [-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],
+            [-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]
+        ].map(v => v.map(c => c * cubeSize));
+
+        const cubeEdges = [
+            [0,1],[1,2],[2,3],[3,0],
+            [4,5],[5,6],[6,7],[7,4],
+            [0,4],[1,5],[2,6],[3,7]
+        ];
+
+        const octSize = 130;
+        const octVerts = [
+            [0,-1,0],[1,0,0],[0,1,0],[-1,0,0],[0,0,1],[0,0,-1]
+        ].map(v => v.map(c => c * octSize));
+
+        const octEdges = [
+            [0,1],[0,3],[0,4],[0,5],
+            [2,1],[2,3],[2,4],[2,5],
+            [1,4],[4,3],[3,5],[5,1]
+        ];
+
+        // ===== VORTEX PARTICLES =====
+        const PARTICLE_COUNT = 2500;
+        const particles = [];
+
+        function createParticle(i) {
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 50 + Math.random() * 200;
+            const speed = 0.003 + Math.random() * 0.008;
+            const yOffset = (Math.random() - 0.5) * 300;
+            const verticalSpeed = (Math.random() - 0.5) * 0.4;
+            const size = 0.5 + Math.random() * 2;
+            const colorMix = Math.random();
+
+            return {
+                angle, radius, speed, yOffset, verticalSpeed,
+                size, colorMix, life: Math.random()
+            };
+        }
+
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+            particles.push(createParticle(i));
+        }
+
+        // ===== AMBIENT DOTS =====
+        const AMBIENT_COUNT = 400;
+        const ambientDots = [];
+        for (let i = 0; i < AMBIENT_COUNT; i++) {
+            ambientDots.push({
+                x: Math.random() * 2 - 1,
+                y: Math.random() * 2 - 1,
+                z: Math.random() * 400 - 200,
+                size: Math.random() * 1.5,
+                speed: 0.0005 + Math.random() * 0.002,
+                opacity: Math.random() * 0.4
+            });
+        }
+
+        // ===== PULSE RINGS =====
+        const pulses = [];
+        let lastPulse = 0;
+
+        function lerpColor(a, b, t) {
+            return [
+                a[0] + (b[0] - a[0]) * t,
+                a[1] + (b[1] - a[1]) * t,
+                a[2] + (b[2] - a[2]) * t
+            ];
+        }
+
+        function colorStr(c, a) {
+            return `rgba(${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])},${a})`;
+        }
+
+        // ===== RENDER FUNCTIONS =====
+        function drawStructure() {
+            const t = time * 0.0004;
+
+            // Draw octahedron (outer, more transparent)
+            ctx.lineWidth = 0.8;
+            for (const [a, b] of octEdges) {
+                let pA = rotateY(rotateX(rotateZ(octVerts[a], t * 0.3), t * 0.5), t * 0.7);
+                let pB = rotateY(rotateX(rotateZ(octVerts[b], t * 0.3), t * 0.5), t * 0.7);
+                const projA = project(pA);
+                const projB = project(pB);
+
+                const grad = ctx.createLinearGradient(projA.x, projA.y, projB.x, projB.y);
+                grad.addColorStop(0, colorStr(RED, 0.15 * projA.s));
+                grad.addColorStop(1, colorStr(ORANGE, 0.15 * projB.s));
+                ctx.strokeStyle = grad;
+                ctx.beginPath();
+                ctx.moveTo(projA.x, projA.y);
+                ctx.lineTo(projB.x, projB.y);
+                ctx.stroke();
+            }
+
+            // Draw octahedron vertices
+            for (const v of octVerts) {
+                let p = rotateY(rotateX(rotateZ(v, t * 0.3), t * 0.5), t * 0.7);
+                const proj = project(p);
+                ctx.fillStyle = colorStr(ORANGE, 0.3 * proj.s);
+                ctx.beginPath();
+                ctx.arc(proj.x, proj.y, 2 * proj.s, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Draw cube (inner, more visible)
+            ctx.lineWidth = 1.2;
+            for (const [a, b] of cubeEdges) {
+                let pA = rotateY(rotateX(cubeVerts[a], t * 0.6), t * 0.4);
+                let pB = rotateY(rotateX(cubeVerts[b], t * 0.6), t * 0.4);
+                const projA = project(pA);
+                const projB = project(pB);
+
+                const grad = ctx.createLinearGradient(projA.x, projA.y, projB.x, projB.y);
+                grad.addColorStop(0, colorStr(RED, 0.5 * projA.s));
+                grad.addColorStop(1, colorStr(ORANGE, 0.5 * projB.s));
+                ctx.strokeStyle = grad;
+                ctx.beginPath();
+                ctx.moveTo(projA.x, projA.y);
+                ctx.lineTo(projB.x, projB.y);
+                ctx.stroke();
+            }
+
+            // Draw cube vertices
+            for (const v of cubeVerts) {
+                let p = rotateY(rotateX(v, t * 0.6), t * 0.4);
+                const proj = project(p);
+                ctx.fillStyle = colorStr(WHITE, 0.7 * proj.s);
+                ctx.beginPath();
+                ctx.arc(proj.x, proj.y, 3 * proj.s, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Glow
+                ctx.fillStyle = colorStr(RED, 0.15 * proj.s);
+                ctx.beginPath();
+                ctx.arc(proj.x, proj.y, 8 * proj.s, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function drawVortex() {
+            const t = time * 0.001;
+
+            for (const p of particles) {
+                p.angle += p.speed;
+                p.yOffset += p.verticalSpeed;
+
+                // Wrap vertical
+                if (p.yOffset > 250) p.yOffset = -250;
+                if (p.yOffset < -250) p.yOffset = 250;
+
+                // Helical 3D position
+                const x = Math.cos(p.angle) * p.radius;
+                const z = Math.sin(p.angle) * p.radius;
+                const y = p.yOffset + Math.sin(p.angle * 2 + t) * 20;
+
+                // Apply slow global rotation
+                let pos = rotateY([x, y, z], t * 0.2);
+                const proj = project(pos);
+
+                // Color based on distance
+                const distFactor = p.colorMix;
+                let color;
+                if (distFactor < 0.33) {
+                    color = lerpColor(RED, EMBER, distFactor * 3);
+                } else if (distFactor < 0.66) {
+                    color = lerpColor(EMBER, ORANGE, (distFactor - 0.33) * 3);
+                } else {
+                    color = lerpColor(ORANGE, WHITE, (distFactor - 0.66) * 3);
+                }
+
+                const alpha = (0.3 + distFactor * 0.5) * proj.s;
+                const size = p.size * proj.s;
+
+                ctx.fillStyle = colorStr(color, Math.min(alpha, 0.8));
+                ctx.beginPath();
+                ctx.arc(proj.x, proj.y, size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function drawAmbient() {
+            for (const d of ambientDots) {
+                d.z -= d.speed * 60;
+                if (d.z < -200) d.z = 200;
+
+                const proj = project([d.x * W * 0.5, d.y * H * 0.5, d.z]);
+                ctx.fillStyle = colorStr(WHITE, d.opacity * proj.s);
+                ctx.beginPath();
+                ctx.arc(proj.x, proj.y, d.size * proj.s, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function drawPulses() {
+            // Add new pulse every 3 seconds
+            if (time - lastPulse > 3000) {
+                pulses.push({ radius: 0, maxRadius: 300, alpha: 0.4 });
+                lastPulse = time;
+            }
+
+            for (let i = pulses.length - 1; i >= 0; i--) {
+                const p = pulses[i];
+                p.radius += 1.5;
+                p.alpha = 0.4 * (1 - p.radius / p.maxRadius);
+
+                if (p.alpha <= 0) {
+                    pulses.splice(i, 1);
+                    continue;
+                }
+
+                ctx.strokeStyle = colorStr(RED, p.alpha);
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(cx + (mouseX - 0.5) * 20, cy + (mouseY - 0.5) * 20, p.radius, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        }
+
+        function drawBackglow() {
+            // Keep dark backlight glow for visualization always
+            const colorStart = 'rgba(157, 92, 255, 0.06)';
+            const colorEnd = 'rgba(59, 130, 246, 0.03)';
+            const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 300);
+            grad.addColorStop(0, colorStart);
+            grad.addColorStop(0.4, colorEnd);
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+        }
+
+        // ===== ANIMATION LOOP =====
+        function animate(ts) {
+            time = ts || 0;
+
+            ctx.clearRect(0, 0, W, H);
+
+            // Draw layers back-to-front
+            drawBackglow();
+            drawAmbient();
+            drawPulses();
+            drawVortex();
+            drawStructure();
+
+            requestAnimationFrame(animate);
+        }
+
+        requestAnimationFrame(animate);
+    })();
+    </script>
+
+    <!-- Theme Toggle Script -->
+    <script>
+    (function() {
+        const themeToggleBtn = document.getElementById('theme-toggle-btn');
+        // Check saved theme preference
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'light') {
+            document.documentElement.classList.add('light-mode');
+            if (typeof window.updateThemeColors === 'function') {
+                window.updateThemeColors();
+            }
+        }
+
+        themeToggleBtn.addEventListener('click', () => {
+            const isLight = document.documentElement.classList.toggle('light-mode');
+            localStorage.setItem('theme', isLight ? 'light' : 'dark');
+            if (typeof window.updateThemeColors === 'function') {
+                window.updateThemeColors();
+            }
+        });
+
+        // Robust scroll to top handler for Logo and Home button
+        const handleScrollToTop = (e) => {
+            e.preventDefault();
+            // Clear URL hash smoothly so the browser doesn't snap back to an anchor
+            if (window.location.hash) {
+                history.pushState("", document.title, window.location.pathname + window.location.search);
+            }
+            // Smooth scroll
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+            // Hard fallback reset (guarantees scroll to top on all browsers)
+            document.documentElement.scrollTop = 0;
+            document.body.scrollTop = 0;
+        };
+
+        const logoEl = document.querySelector('.nav-logo');
+        const homeLinkEl = document.querySelector('.home-link');
+        if (logoEl) logoEl.addEventListener('click', handleScrollToTop);
+        if (homeLinkEl) homeLinkEl.addEventListener('click', handleScrollToTop);
+    })();
+    </script>
+</body>
+</html>
