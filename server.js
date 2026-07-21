@@ -88,7 +88,43 @@ function verifySignature(claimedAddress, signature, message = "Authenticate RitA
     }
 }
 
+// Lightweight memory-based rate limiting helper
+const ipRequestHistory = {};
+function checkRateLimit(ip, limit = 60, windowMs = 60 * 1000) {
+    const now = Date.now();
+    if (!ipRequestHistory[ip]) {
+        ipRequestHistory[ip] = [];
+    }
+    ipRequestHistory[ip] = ipRequestHistory[ip].filter(timestamp => now - timestamp < windowMs);
+    if (ipRequestHistory[ip].length >= limit) {
+        return false;
+    }
+    ipRequestHistory[ip].push(now);
+    return true;
+}
+
+// Custom request body validation rules
+function isValidAddress(address) {
+    return typeof address === 'string' && /^0x[0-9a-fA-F]{40}$/.test(address);
+}
+
+function isValidString(val, maxLen = 200) {
+    return typeof val === 'string' && val.trim().length > 0 && val.length <= maxLen;
+}
+
+function isValidUuid(val) {
+    return typeof val === 'string' && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(val);
+}
+
 const server = http.createServer(async (req, res) => {
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+
+    // Global rate limiting (max 60 requests per minute per IP)
+    if (!checkRateLimit(ip, 60, 60 * 1000)) {
+        res.writeHead(429, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
+        return res.end(JSON.stringify({ error: "Too many requests. Please try again later." }));
+    }
+
     // Parse URL and query params
     const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
     const pathname = parsedUrl.pathname;
@@ -96,6 +132,10 @@ const server = http.createServer(async (req, res) => {
     // --- DATABASE API ROUTES ---
     if (pathname === '/api/db/subscription' && req.method === 'GET') {
         const walletAddress = parsedUrl.searchParams.get('walletAddress');
+        if (!isValidAddress(walletAddress)) {
+            res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
+            return res.end(JSON.stringify({ error: "Invalid parameters: walletAddress must be a valid hex address" }));
+        }
         const sub = await db.dbGetSubscription(walletAddress);
         res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
         return res.end(JSON.stringify({ subscription: sub }));
@@ -104,6 +144,10 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/db/activate-trial' && req.method === 'POST') {
         const body = await parseJsonBody(req);
         const { walletAddress, signature } = body;
+        if (!isValidAddress(walletAddress)) {
+            res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
+            return res.end(JSON.stringify({ error: "Invalid parameters: walletAddress must be a valid hex address" }));
+        }
         if (!verifySignature(walletAddress, signature)) {
             res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
             return res.end(JSON.stringify({ error: "Unauthorized: Invalid Web3 session signature" }));
@@ -115,6 +159,10 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/api/db/tracked-addresses' && req.method === 'GET') {
         const walletAddress = parsedUrl.searchParams.get('walletAddress');
+        if (!isValidAddress(walletAddress)) {
+            res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
+            return res.end(JSON.stringify({ error: "Invalid parameters: walletAddress must be a valid hex address" }));
+        }
         const list = await db.dbGetTrackedAddresses(walletAddress);
         res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
         return res.end(JSON.stringify({ addresses: list }));
@@ -123,6 +171,10 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/db/save-address' && req.method === 'POST') {
         const body = await parseJsonBody(req);
         const { userWallet, targetAddress, blockchain, alias, signature } = body;
+        if (!isValidAddress(userWallet) || !isValidAddress(targetAddress) || !isValidString(blockchain) || !isValidString(alias)) {
+            res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
+            return res.end(JSON.stringify({ error: "Invalid parameter configurations" }));
+        }
         if (!verifySignature(userWallet, signature)) {
             res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
             return res.end(JSON.stringify({ error: "Unauthorized: Invalid Web3 session signature" }));
@@ -135,6 +187,10 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/db/delete-address' && req.method === 'POST') {
         const body = await parseJsonBody(req);
         const { id, userWallet, signature } = body;
+        if (!isValidUuid(id) || !isValidAddress(userWallet)) {
+            res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
+            return res.end(JSON.stringify({ error: "Invalid id format or wallet address" }));
+        }
         if (!verifySignature(userWallet, signature)) {
             res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
             return res.end(JSON.stringify({ error: "Unauthorized: Invalid Web3 session signature" }));
@@ -146,6 +202,10 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/api/db/socials' && req.method === 'GET') {
         const walletAddress = parsedUrl.searchParams.get('walletAddress');
+        if (!isValidAddress(walletAddress)) {
+            res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
+            return res.end(JSON.stringify({ error: "Invalid parameters: walletAddress must be a valid hex address" }));
+        }
         const socials = await db.dbGetSocials(walletAddress);
         res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
         return res.end(JSON.stringify({ socials }));
@@ -154,6 +214,10 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/db/save-socials' && req.method === 'POST') {
         const body = await parseJsonBody(req);
         const { walletAddress, platform, handleValue, signature } = body;
+        if (!isValidAddress(walletAddress) || !isValidString(platform) || (handleValue !== null && typeof handleValue !== 'string')) {
+            res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
+            return res.end(JSON.stringify({ error: "Invalid socials update payload" }));
+        }
         if (!verifySignature(walletAddress, signature)) {
             res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
             return res.end(JSON.stringify({ error: "Unauthorized: Invalid Web3 session signature" }));
