@@ -196,6 +196,16 @@
 
     async function fetchRealTransactions(address, chainKey) {
         const chain = CONFIG.chains[chainKey];
+        const formatWei = (weiValue) => {
+            if (!weiValue || weiValue === '0') return '0';
+            const ethVal = parseFloat(weiValue) / 1e18;
+            if (ethVal === 0) return '0';
+            if (ethVal < 0.001) {
+                return parseFloat(ethVal.toFixed(8)).toString();
+            }
+            return parseFloat(ethVal.toFixed(6)).toString();
+        };
+
         let apiUrl = '';
         if (chainKey === 'ritual') {
             apiUrl = `https://explorer.ritualfoundation.org/api/v2/addresses/${address}/transactions`;
@@ -212,7 +222,7 @@
             
             if (data && data.items && Array.isArray(data.items)) {
                 return data.items.slice(0, 10).map(item => {
-                    const txValue = item.value ? (parseFloat(item.value) / 1e18).toFixed(4) : '0';
+                    const txValue = formatWei(item.value);
                     const txTime = item.timestamp ? new Date(item.timestamp).toLocaleString() : 'Just now';
                     const method = item.method || (item.to && item.to.is_contract ? 'Contract Call' : 'Transfer');
                     const isIncoming = item.to && item.to.hash.toLowerCase() === address.toLowerCase();
@@ -239,7 +249,7 @@
         try {
             const rpcProvider = new ethers.JsonRpcProvider(chain.rpc);
             const balance = await rpcProvider.getBalance(address);
-            const balanceEth = (parseFloat(balance.toString()) / 1e18).toFixed(4);
+            const balanceEth = formatWei(balance.toString());
             const code = await rpcProvider.getCode(address);
             const isContract = code !== '0x';
 
@@ -264,10 +274,20 @@
 
     async function generateAIResponse(question, address) {
         const chain = CONFIG.chains[state.currentChain];
+        const formatWei = (weiValue) => {
+            if (!weiValue || weiValue === '0') return '0';
+            const ethVal = parseFloat(weiValue) / 1e18;
+            if (ethVal === 0) return '0';
+            if (ethVal < 0.001) {
+                return parseFloat(ethVal.toFixed(8)).toString();
+            }
+            return parseFloat(ethVal.toFixed(6)).toString();
+        };
+
         try {
             const rpcProvider = new ethers.JsonRpcProvider(chain.rpc);
             const balance = await rpcProvider.getBalance(address);
-            const balanceEth = (parseFloat(balance.toString()) / 1e18).toFixed(4);
+            const balanceEth = formatWei(balance.toString());
             const code = await rpcProvider.getCode(address);
             const isContract = code !== '0x';
 
