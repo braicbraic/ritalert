@@ -211,7 +211,7 @@
             const data = await res.json();
             
             if (data && data.items && Array.isArray(data.items)) {
-                return data.items.slice(0, 5).map(item => {
+                return data.items.slice(0, 10).map(item => {
                     const txValue = item.value ? (parseFloat(item.value) / 1e18).toFixed(4) : '0';
                     const txTime = item.timestamp ? new Date(item.timestamp).toLocaleString() : 'Just now';
                     const method = item.method || (item.to && item.to.is_contract ? 'Contract Call' : 'Transfer');
