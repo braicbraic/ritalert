@@ -9,9 +9,7 @@
     // ===== CONFIGURATION =====
     const CONFIG = {
         walletConnectProjectId: 'e07c12a0e7ebc3cb71c71874eefcf79d',
-        telegram: {
-            botToken: '8903424188:AAGsyvjW_HGvP0p8cSWVz9jaZnnH5loZEt4', // project bot token
-        },
+        telegram: {},
         chains: {
             ritual: {
                 name: 'Ritual Testnet',
@@ -336,14 +334,18 @@
             state.provider = new ethers.BrowserProvider(window.ethereum);
             state.signer = await state.provider.getSigner();
             state.walletAddress = await state.signer.getAddress();
+            // Ask the user to sign the session authentication message
+            addSystemMessage("Please sign the session authentication request in your Web3 wallet...");
+            state.walletSignature = await state.signer.signMessage("Authenticate RitAlert Session");
 
             // Update UI
             DOM.walletBtn.classList.add('connected');
             DOM.walletBtn.setAttribute('data-full-address', state.walletAddress);
+            DOM.walletBtn.setAttribute('data-signature', state.walletSignature);
             DOM.walletBtnText.innerHTML = `<span class="wallet-dot"></span> ${abbreviate(state.walletAddress)}`;
             DOM.statusWallet.textContent = `Wallet: ${abbreviate(state.walletAddress)}`;
 
-            addSystemMessage(`Wallet connected: ${abbreviate(state.walletAddress)}`);
+            addSystemMessage(`Wallet authenticated: ${abbreviate(state.walletAddress)}`);
 
             // Start block polling
             pollBlockNumber();
@@ -352,7 +354,7 @@
             loadDBTrackedHistory(state.walletAddress);
         } catch (err) {
             console.error('Wallet connection failed:', err);
-            addAIMessage(`Wallet connection failed: ${err.message}`);
+            addAIMessage(`Wallet authentication failed: ${err.message}`);
         }
     }
 
@@ -640,7 +642,8 @@
                         userWallet: state.walletAddress,
                         targetAddress: address,
                         blockchain: chainConfig.name,
-                        alias: 'Contract/Wallet'
+                        alias: 'Contract/Wallet',
+                        signature: state.walletSignature
                     })
                 });
                 const data = await res.json();
@@ -667,7 +670,8 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     id: id,
-                    userWallet: state.walletAddress
+                    userWallet: state.walletAddress,
+                    signature: state.walletSignature
                 })
             });
             const data = await res.json();
@@ -805,7 +809,6 @@
         // Telegram - Test alert helper
         async function triggerTelegramTest() {
             const chatId = DOM.tgChatId.value.trim();
-            const token = CONFIG.telegram.botToken;
 
             if (!chatId) {
                 alert('Please enter your Telegram Chat ID first.');
@@ -820,18 +823,17 @@
 
                 const message = `🔔 <b>RitAlert Telegram Notification</b>\n\nYour Telegram alerts are successfully connected to @ritalert_bot!\n\n🔗 Active Chain: ${CONFIG.chains[state.currentChain].name}\n⏰ Time: ${new Date().toLocaleString()}`;
 
-                const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+                const response = await fetch(`/api/payments/test-telegram`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        chat_id: chatId,
-                        text: message,
-                        parse_mode: 'HTML',
-                    }),
+                        chatId: chatId,
+                        message: message
+                    })
                 });
 
                 const data = await response.json();
-                if (data.ok) {
+                if (data.success) {
                     DOM.tgTestBtn.textContent = '✅ Sent!';
                     DOM.tgTestBtnSaved.textContent = '✅ Sent!';
                     setTimeout(() => { 
@@ -841,7 +843,7 @@
                 } else {
                     DOM.tgTestBtn.textContent = '❌ Failed';
                     DOM.tgTestBtnSaved.textContent = '❌ Failed';
-                    alert('Failed to send Telegram alert: ' + (data.description || 'Unknown error. Make sure you started the bot by clicking Start in @ritalert_bot first.'));
+                    alert('Failed to send Telegram alert: ' + (data.error || 'Unknown error. Make sure you started the bot by clicking Start in @ritalert_bot first.'));
                     setTimeout(() => { 
                         DOM.tgTestBtn.textContent = '🔔 Test Alert'; 
                         DOM.tgTestBtnSaved.textContent = '🔔 Send Test'; 

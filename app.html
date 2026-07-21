@@ -798,12 +798,13 @@
         function saveSocialConnection(platform, value, btnId, defaultColor) {
             const walletBtn = document.getElementById('wallet-btn');
             const address = walletBtn.getAttribute('data-full-address');
+            const signature = walletBtn.getAttribute('data-signature');
             if (!address) return;
 
             fetch('/api/db/save-socials', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ walletAddress: address, platform, handleValue: value })
+                body: JSON.stringify({ walletAddress: address, platform, handleValue: value, signature: signature })
             })
             .then(res => res.json())
             .then(data => {
@@ -854,10 +855,13 @@
         // Function to trigger trial activation
         function activateTrial(address) {
             logConsole("Activating 7-day free trial on database...");
+            const walletBtn = document.getElementById('wallet-btn');
+            const signature = walletBtn.getAttribute('data-signature');
+
             fetch('/api/db/activate-trial', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ walletAddress: address })
+                body: JSON.stringify({ walletAddress: address, signature: signature })
             })
             .then(res => res.json())
             .then(data => {

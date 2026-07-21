@@ -3,6 +3,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { ethers } = require('ethers');
 const db = require('./db');
 
 const PORT = 8000;
@@ -30,11 +31,24 @@ function loadEnv() {
 }
 
 const env = loadEnv();
-const MOONPAY_SECRET_KEY = env.MOONPAY_SECRET_KEY;
-const MOONPAY_PUBLISHABLE_KEY = env.MOONPAY_PUBLISHABLE_KEY;
-const STRIPE_SECRET_KEY = env.STRIPE_SECRET_KEY;
-const ONRAMPER_PUBLIC_KEY = env.ONRAMPER_PUBLIC_KEY;
-const ONRAMPER_SECRET_KEY = env.ONRAMPER_SECRET_KEY;
+Object.keys(env).forEach(key => {
+    process.env[key] = env[key];
+});
+
+const MOONPAY_SECRET_KEY = process.env.MOONPAY_SECRET_KEY;
+const MOONPAY_PUBLISHABLE_KEY = process.env.MOONPAY_PUBLISHABLE_KEY;
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+const ONRAMPER_PUBLIC_KEY = process.env.ONRAMPER_PUBLIC_KEY;
+const ONRAMPER_SECRET_KEY = process.env.ONRAMPER_SECRET_KEY;
+
+// Fail-fast startup validation for required environments
+const requiredEnv = ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'STRIPE_SECRET_KEY', 'TELEGRAM_BOT_TOKEN'];
+requiredEnv.forEach(key => {
+    if (!process.env[key]) {
+        console.error(`❌ CRITICAL STARTUP ERROR: Missing environment variable: ${key}`);
+        process.exit(1);
+    }
+});
 
 // Content type mapper for static files
 const MIME_TYPES = {
@@ -63,6 +77,17 @@ function parseJsonBody(req) {
     });
 }
 
+// Helper to verify Web3 signature for sessions
+function verifySignature(claimedAddress, signature, message = "Authenticate RitAlert Session") {
+    if (!claimedAddress || !signature) return false;
+    try {
+        const recoveredAddress = ethers.verifyMessage(message, signature);
+        return recoveredAddress.toLowerCase() === claimedAddress.toLowerCase();
+    } catch (err) {
+        return false;
+    }
+}
+
 const server = http.createServer(async (req, res) => {
     // Parse URL and query params
     const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
@@ -72,54 +97,128 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/db/subscription' && req.method === 'GET') {
         const walletAddress = parsedUrl.searchParams.get('walletAddress');
         const sub = await db.dbGetSubscription(walletAddress);
-        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
         return res.end(JSON.stringify({ subscription: sub }));
     }
 
     if (pathname === '/api/db/activate-trial' && req.method === 'POST') {
         const body = await parseJsonBody(req);
-        const walletAddress = body.walletAddress;
+        const { walletAddress, signature } = body;
+        if (!verifySignature(walletAddress, signature)) {
+            res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
+            return res.end(JSON.stringify({ error: "Unauthorized: Invalid Web3 session signature" }));
+        }
         const success = await db.dbActivateTrial(walletAddress);
-        res.writeHead(success ? 200 : 500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.writeHead(success ? 200 : 500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
         return res.end(JSON.stringify({ success }));
     }
 
     if (pathname === '/api/db/tracked-addresses' && req.method === 'GET') {
         const walletAddress = parsedUrl.searchParams.get('walletAddress');
         const list = await db.dbGetTrackedAddresses(walletAddress);
-        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
         return res.end(JSON.stringify({ addresses: list }));
     }
 
     if (pathname === '/api/db/save-address' && req.method === 'POST') {
         const body = await parseJsonBody(req);
-        const { userWallet, targetAddress, blockchain, alias } = body;
+        const { userWallet, targetAddress, blockchain, alias, signature } = body;
+        if (!verifySignature(userWallet, signature)) {
+            res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
+            return res.end(JSON.stringify({ error: "Unauthorized: Invalid Web3 session signature" }));
+        }
         const data = await db.dbSaveTrackedAddress(userWallet, targetAddress, blockchain, alias);
-        res.writeHead(data ? 200 : 500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.writeHead(data ? 200 : 500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
         return res.end(JSON.stringify({ success: !!data, address: data }));
     }
 
     if (pathname === '/api/db/delete-address' && req.method === 'POST') {
         const body = await parseJsonBody(req);
-        const { id, userWallet } = body;
+        const { id, userWallet, signature } = body;
+        if (!verifySignature(userWallet, signature)) {
+            res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
+            return res.end(JSON.stringify({ error: "Unauthorized: Invalid Web3 session signature" }));
+        }
         const success = await db.dbDeleteTrackedAddress(id, userWallet);
-        res.writeHead(success ? 200 : 500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.writeHead(success ? 200 : 500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
         return res.end(JSON.stringify({ success }));
     }
 
     if (pathname === '/api/db/socials' && req.method === 'GET') {
         const walletAddress = parsedUrl.searchParams.get('walletAddress');
         const socials = await db.dbGetSocials(walletAddress);
-        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
         return res.end(JSON.stringify({ socials }));
     }
 
     if (pathname === '/api/db/save-socials' && req.method === 'POST') {
         const body = await parseJsonBody(req);
-        const { walletAddress, platform, handleValue } = body;
+        const { walletAddress, platform, handleValue, signature } = body;
+        if (!verifySignature(walletAddress, signature)) {
+            res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
+            return res.end(JSON.stringify({ error: "Unauthorized: Invalid Web3 session signature" }));
+        }
         const success = await db.dbSaveSocials(walletAddress, platform, handleValue);
-        res.writeHead(success ? 200 : 500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.writeHead(success ? 200 : 500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
         return res.end(JSON.stringify({ success }));
+    }
+
+    // --- SECURE TELEGRAM SENDER ROUTE ---
+    if (pathname === '/api/payments/test-telegram' && req.method === 'POST') {
+        const body = await parseJsonBody(req);
+        const { chatId, message } = body;
+        const botToken = process.env.TELEGRAM_BOT_TOKEN;
+
+        if (!botToken) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: "Telegram Bot Token not configured on backend" }));
+        }
+
+        const postData = JSON.stringify({
+            chat_id: chatId,
+            text: message,
+            parse_mode: 'HTML'
+        });
+
+        const options = {
+            hostname: 'api.telegram.org',
+            port: 443,
+            path: `/bot${botToken}/sendMessage`,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(postData)
+            }
+        };
+
+        const tgReq = https.request(options, (tgRes) => {
+            let tgBody = '';
+            tgRes.on('data', (chunk) => { tgBody += chunk; });
+            tgRes.on('end', () => {
+                try {
+                    const data = JSON.parse(tgBody);
+                    if (data.ok) {
+                        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
+                        res.end(JSON.stringify({ success: true }));
+                    } else {
+                        res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
+                        res.end(JSON.stringify({ success: false, error: data.description }));
+                    }
+                } catch (e) {
+                    res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
+                    res.end(JSON.stringify({ success: false, error: "Failed to parse Telegram response" }));
+                }
+            });
+        });
+
+        tgReq.on('error', (err) => {
+            res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
+            res.end(JSON.stringify({ success: false, error: err.message }));
+        });
+
+        tgReq.write(postData);
+        tgReq.end();
+        return;
     }
 
     // --- SECURE API ROUTE: CREATE STRIPE CHECKOUT SESSION ---

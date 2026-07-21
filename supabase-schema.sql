@@ -43,18 +43,6 @@ ON public.tracked_addresses FOR SELECT
 TO public 
 USING (true);
 
--- Allow public insert on tracked addresses
-CREATE POLICY "Allow public insert on tracked_addresses" 
-ON public.tracked_addresses FOR INSERT 
-TO public 
-WITH CHECK (true);
-
--- Allow public delete on tracked addresses
-CREATE POLICY "Allow public delete on tracked_addresses" 
-ON public.tracked_addresses FOR DELETE 
-TO public 
-USING (true);
-
 -- Allow full access for service role
 CREATE POLICY "Allow service_role full access to tracked_addresses" 
 ON public.tracked_addresses FOR ALL 
@@ -77,12 +65,6 @@ ALTER TABLE public.social_connections ENABLE ROW LEVEL SECURITY;
 -- Allow public read access to social connections
 CREATE POLICY "Allow public select on social_connections" 
 ON public.social_connections FOR SELECT 
-TO public 
-USING (true);
-
--- Allow public insert/update (upsert)
-CREATE POLICY "Allow public upsert on social_connections" 
-ON public.social_connections FOR ALL 
 TO public 
 USING (true);
 
