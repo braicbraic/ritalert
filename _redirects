@@ -1,0 +1,2 @@
+# Redirect rules for Netlify to route frontend API requests to the Render/Railway backend
+/api/*  https://ritalert-backend.onrender.com/api/:splat  200
