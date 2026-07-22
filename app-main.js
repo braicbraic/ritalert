@@ -1163,13 +1163,39 @@
             });
         }
 
-        // Telegram Profile Connect Handler (Custom Modal)
-        const connectTelegramBtn = document.getElementById('connect-telegram-btn');
-        const telegramModalOverlay = document.getElementById('telegram-modal-overlay');
-        const telegramModalClose = document.getElementById('telegram-modal-close');
-        const telegramModalInput = document.getElementById('telegram-modal-input');
-        const telegramModalSaveBtn = document.getElementById('telegram-modal-save-btn');
+        // Telegram OAuth Widget Authentication Callback
+        window.onTelegramAuth = async function(user) {
+            if (!state.walletAddress) {
+                alert('Please connect your Web3 wallet first to link your Telegram account.');
+                return;
+            }
+            try {
+                const res = await fetch('/api/auth/telegram/callback', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ walletAddress: state.walletAddress, authData: user })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const connectTelegramBtn = document.getElementById('connect-telegram-btn');
+                    if (connectTelegramBtn) {
+                        connectTelegramBtn.textContent = `Connected (${data.handle})`;
+                        connectTelegramBtn.style.borderColor = '#10B981';
+                        connectTelegramBtn.style.color = '#10B981';
+                    }
+                    addSystemMessage(`Linked Telegram account: ${data.handle}`);
+                    alert(`🎉 Successfully authenticated Telegram profile ${data.handle}!`);
+                } else {
+                    alert(`Telegram authentication failed: ${data.error || 'Invalid signature'}`);
+                }
+            } catch (err) {
+                console.error("Telegram Auth Error:", err);
+                alert("Failed to verify Telegram login credentials.");
+            }
+        };
 
+        // Telegram Profile Connect Handler (Official OAuth Widget)
+        const connectTelegramBtn = document.getElementById('connect-telegram-btn');
         if (connectTelegramBtn) {
             connectTelegramBtn.addEventListener('click', async () => {
                 if (!state.walletAddress) {
@@ -1185,32 +1211,14 @@
                     return;
                 }
 
-                if (telegramModalOverlay) {
-                    telegramModalOverlay.classList.add('active');
-                    if (telegramModalInput) telegramModalInput.focus();
-                }
-            });
-        }
-
-        if (telegramModalClose) {
-            telegramModalClose.addEventListener('click', () => {
-                if (telegramModalOverlay) telegramModalOverlay.classList.remove('active');
-            });
-        }
-
-        if (telegramModalSaveBtn) {
-            telegramModalSaveBtn.addEventListener('click', async () => {
-                const username = telegramModalInput ? telegramModalInput.value : '';
-                if (username && username.trim()) {
-                    const cleanUser = username.trim().startsWith('@') ? username.trim() : `@${username.trim()}`;
-                    const success = await saveSocialConnection('telegram', cleanUser, connectTelegramBtn, '#0088cc');
-                    if (success) {
-                        addSystemMessage(`Linked Telegram profile: ${cleanUser}`);
-                        alert(`🎉 Successfully connected Telegram profile ${cleanUser}!`);
-                        if (telegramModalOverlay) telegramModalOverlay.classList.remove('active');
-                    } else {
-                        alert('Failed to save Telegram profile to database.');
-                    }
+                if (window.Telegram && window.Telegram.Login && window.Telegram.Login.auth) {
+                    window.Telegram.Login.auth(
+                        { bot_id: '8903424188', request_access: 'write' },
+                        window.onTelegramAuth
+                    );
+                } else {
+                    // Fallback to Telegram OAuth Widget Redirect
+                    window.location.href = `https://oauth.telegram.org/auth?bot_id=8903424188&origin=${encodeURIComponent(window.location.origin)}&embed=1&request_access=write`;
                 }
             });
         }

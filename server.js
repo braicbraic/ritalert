@@ -433,6 +433,76 @@ const server = http.createServer(async (req, res) => {
         }
     }
 
+    // --- TELEGRAM OAUTH WIDGET AUTHENTICATION ROUTE ---
+    if (pathname === '/api/auth/telegram/callback') {
+        let authData = {};
+        let walletAddress = '';
+
+        if (req.method === 'POST') {
+            const body = await parseJsonBody(req);
+            authData = body.authData || body;
+            walletAddress = body.walletAddress || authData.walletAddress;
+        } else if (req.method === 'GET') {
+            walletAddress = parsedUrl.searchParams.get('walletAddress');
+            parsedUrl.searchParams.forEach((val, key) => {
+                if (key !== 'walletAddress') authData[key] = val;
+            });
+        }
+
+        const botToken = process.env.TELEGRAM_BOT_TOKEN;
+        if (!botToken) {
+            if (req.method === 'POST') {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ error: "TELEGRAM_BOT_TOKEN not configured on server" }));
+            }
+            res.writeHead(500, { 'Content-Type': 'text/html' });
+            return res.end('<h2>Telegram Auth Error: TELEGRAM_BOT_TOKEN missing on server</h2>');
+        }
+
+        // Verify Telegram HMAC-SHA256 signature according to official Telegram spec
+        const { hash, ...checkData } = authData;
+        if (!hash) {
+            if (req.method === 'POST') {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ error: "Missing Telegram authentication hash signature" }));
+            }
+            res.writeHead(400, { 'Content-Type': 'text/html' });
+            return res.end('<h2>Telegram Auth Error: Missing hash signature</h2>');
+        }
+
+        const dataCheckArr = Object.keys(checkData)
+            .sort()
+            .map(k => `${k}=${checkData[k]}`);
+        const dataCheckString = dataCheckArr.join('\n');
+
+        const secretKey = crypto.createHash('sha256').update(botToken).digest();
+        const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+
+        if (calculatedHash !== hash) {
+            console.error("Telegram HMAC verification failed. Calculated:", calculatedHash, "Received:", hash);
+            if (req.method === 'POST') {
+                res.writeHead(401, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ error: "Invalid Telegram cryptographic signature. Verification failed." }));
+            }
+            res.writeHead(401, { 'Content-Type': 'text/html' });
+            return res.end('<h2>Telegram Auth Error: Invalid cryptographic signature</h2>');
+        }
+
+        const handle = authData.username ? `@${authData.username}` : `Telegram_ID_${authData.id}`;
+        
+        if (isValidAddress(walletAddress)) {
+            await db.dbSaveSocials(walletAddress, 'telegram', handle);
+        }
+
+        if (req.method === 'POST') {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: true, handle }));
+        }
+
+        res.writeHead(302, { Location: `/app.html?social_connected=telegram&handle=${encodeURIComponent(handle)}` });
+        return res.end();
+    }
+
     // --- SECURE TELEGRAM SENDER ROUTE ---
     if (pathname === '/api/payments/test-telegram' && req.method === 'POST') {
         const body = await parseJsonBody(req);
