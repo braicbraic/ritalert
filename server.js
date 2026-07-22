@@ -259,9 +259,8 @@ const server = http.createServer(async (req, res) => {
 
         twitterOauthStateStore[state] = { walletAddress, codeVerifier, createdAt: Date.now() };
 
-        const host = req.headers['x-forwarded-host'] || req.headers.host;
-        const protocol = req.headers['x-forwarded-proto'] || 'https';
-        const redirectUri = process.env.TWITTER_REDIRECT_URI || `${protocol}://${host}/api/auth/twitter/callback`;
+        // Always use netlify production domain for redirectUri to match X Developer Portal
+        const redirectUri = process.env.TWITTER_REDIRECT_URI || 'https://ritalert.netlify.app/api/auth/twitter/callback';
 
         const authUrl = `https://twitter.com/i/oauth2/authorize?` +
             `response_type=code&` +
@@ -270,7 +269,7 @@ const server = http.createServer(async (req, res) => {
             `scope=users.read%20tweet.read&` +
             `state=${state}&` +
             `code_challenge=${codeChallenge}&` +
-            `code_challenge_method=s256`;
+            `code_challenge_method=S256`;
 
         console.log("🔗 Generated Twitter Auth URL:", authUrl);
 
@@ -292,9 +291,7 @@ const server = http.createServer(async (req, res) => {
 
         const clientId = process.env.TWITTER_CLIENT_ID;
         const clientSecret = process.env.TWITTER_CLIENT_SECRET;
-        const host = req.headers['x-forwarded-host'] || req.headers.host;
-        const protocol = req.headers['x-forwarded-proto'] || 'https';
-        const redirectUri = process.env.TWITTER_REDIRECT_URI || `${protocol}://${host}/api/auth/twitter/callback`;
+        const redirectUri = process.env.TWITTER_REDIRECT_URI || 'https://ritalert.netlify.app/api/auth/twitter/callback';
 
         try {
             // 1. Exchange authorization code for access token
