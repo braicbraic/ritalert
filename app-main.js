@@ -1194,7 +1194,7 @@
             });
         }
 
-        // Discord Webhook Connect Handler
+        // Discord OAuth 2.0 Connect Handler
         const connectDiscordBtn = document.getElementById('connect-discord-btn');
         if (connectDiscordBtn) {
             connectDiscordBtn.addEventListener('click', async () => {
@@ -1204,34 +1204,28 @@
                 }
 
                 if (connectDiscordBtn.textContent.startsWith('Connected')) {
-                    if (confirm("Disconnect your linked Discord webhook?")) {
+                    if (confirm("Disconnect your linked Discord account?")) {
                         await saveSocialConnection('discord', null, connectDiscordBtn, '#5865F2');
-                        addSystemMessage('Disconnected Discord webhook');
+                        addSystemMessage('Disconnected Discord account');
                     }
                     return;
                 }
 
-                const webhook = prompt("Enter your Discord Webhook URL:");
-                if (webhook && webhook.trim().startsWith('https://discord.com/api/webhooks/')) {
-                    const success = await saveSocialConnection('discord', webhook.trim(), connectDiscordBtn, '#5865F2');
-                    if (success) {
-                        addSystemMessage('Linked Discord Webhook');
-                        alert('🎉 Successfully connected Discord Webhook!');
-                    } else {
-                        alert('Failed to save Discord Webhook to database.');
-                    }
-                } else if (webhook) {
-                    alert('Invalid Discord Webhook URL. It should start with https://discord.com/api/webhooks/');
-                }
+                window.location.href = `/api/auth/discord/login?walletAddress=${state.walletAddress}`;
             });
         }
 
-        // Check for Twitter OAuth Callback URL Parameters
+        // Check for Twitter / Discord OAuth Callback URL Parameters
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('social_connected') === 'twitter') {
             const handle = urlParams.get('handle') || 'account';
             alert(`🎉 Successfully connected Twitter (X) account ${handle}!`);
             addSystemMessage(`Connected Twitter (X) account: ${handle}`);
+            window.history.replaceState({}, document.title, window.location.pathname);
+        } else if (urlParams.get('social_connected') === 'discord') {
+            const handle = urlParams.get('handle') || 'account';
+            alert(`🎉 Successfully connected Discord account ${handle}!`);
+            addSystemMessage(`Connected Discord account: ${handle}`);
             window.history.replaceState({}, document.title, window.location.pathname);
         }
 

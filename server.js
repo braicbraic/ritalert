@@ -346,6 +346,87 @@ const server = http.createServer(async (req, res) => {
         }
     }
 
+    // --- DISCORD OAUTH 2.0 ROUTES ---
+    if (pathname === '/api/auth/discord/login' && req.method === 'GET') {
+        const walletAddress = parsedUrl.searchParams.get('walletAddress');
+        if (!isValidAddress(walletAddress)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: "Invalid wallet address parameter. Connect your Web3 wallet first." }));
+        }
+
+        const clientId = process.env.DISCORD_CLIENT_ID || '1529416793695981638';
+        const state = crypto.randomBytes(16).toString('hex');
+        discordOauthStateStore[state] = { walletAddress, createdAt: Date.now() };
+
+        const redirectUri = process.env.DISCORD_REDIRECT_URI || 'https://ritalert.netlify.app/api/auth/discord/callback';
+        const authUrl = `https://discord.com/oauth2/authorize?` +
+            `client_id=${clientId}&` +
+            `response_type=code&` +
+            `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+            `scope=identify&` +
+            `state=${state}`;
+
+        res.writeHead(302, { Location: authUrl });
+        return res.end();
+    }
+
+    if (pathname === '/api/auth/discord/callback' && req.method === 'GET') {
+        const code = parsedUrl.searchParams.get('code');
+        const state = parsedUrl.searchParams.get('state');
+
+        if (!code || !state || !discordOauthStateStore[state]) {
+            res.writeHead(400, { 'Content-Type': 'text/html' });
+            return res.end('<h2>Authentication Error: Invalid or expired OAuth state</h2><a href="/app.html">Return to App</a>');
+        }
+
+        const { walletAddress } = discordOauthStateStore[state];
+        delete discordOauthStateStore[state];
+
+        const clientId = process.env.DISCORD_CLIENT_ID || '1529416793695981638';
+        const clientSecret = process.env.DISCORD_CLIENT_SECRET;
+        const redirectUri = process.env.DISCORD_REDIRECT_URI || 'https://ritalert.netlify.app/api/auth/discord/callback';
+
+        try {
+            const tokenParams = new URLSearchParams({
+                client_id: clientId,
+                client_secret: clientSecret || '',
+                grant_type: 'authorization_code',
+                code: code,
+                redirect_uri: redirectUri
+            });
+
+            const tokenRes = await fetch('https://discord.com/api/oauth2/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: tokenParams.toString()
+            });
+
+            const tokenData = await tokenRes.json();
+            if (!tokenData.access_token) {
+                console.error("Discord token exchange failed:", tokenData);
+                res.writeHead(500, { 'Content-Type': 'text/html' });
+                return res.end(`<h2>Discord Auth Failed: ${tokenData.error_description || tokenData.error || 'Token exchange failed'}</h2><a href="/app.html">Return to App</a>`);
+            }
+
+            const userRes = await fetch('https://discord.com/api/users/@me', {
+                headers: { 'Authorization': `Bearer ${tokenData.access_token}` }
+            });
+            const userData = await userRes.json();
+            const discordTag = userData.discriminator && userData.discriminator !== '0'
+                ? `${userData.username}#${userData.discriminator}`
+                : `@${userData.username}`;
+
+            await db.dbSaveSocials(walletAddress, 'discord', discordTag);
+
+            res.writeHead(302, { Location: `/app.html?social_connected=discord&handle=${encodeURIComponent(discordTag)}` });
+            return res.end();
+        } catch (err) {
+            console.error("Discord OAuth callback error:", err);
+            res.writeHead(500, { 'Content-Type': 'text/html' });
+            return res.end(`<h2>Discord Authentication Error: ${err.message}</h2><a href="/app.html">Return to App</a>`);
+        }
+    }
+
     // --- SECURE TELEGRAM SENDER ROUTE ---
     if (pathname === '/api/payments/test-telegram' && req.method === 'POST') {
         const body = await parseJsonBody(req);
