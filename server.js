@@ -259,15 +259,15 @@ const server = http.createServer(async (req, res) => {
 
         twitterOauthStateStore[state] = { walletAddress, codeVerifier, createdAt: Date.now() };
 
-        const host = req.headers.host;
-        const protocol = req.headers['x-forwarded-proto'] || 'http';
-        const redirectUri = `${protocol}://${host}/api/auth/twitter/callback`;
+        const host = req.headers['x-forwarded-host'] || req.headers.host;
+        const protocol = req.headers['x-forwarded-proto'] || 'https';
+        const redirectUri = process.env.TWITTER_REDIRECT_URI || `${protocol}://${host}/api/auth/twitter/callback`;
 
         const authUrl = `https://twitter.com/i/oauth2/authorize?` +
             `response_type=code&` +
             `client_id=${clientId}&` +
             `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-            `scope=tweet.read%20users.read%20offline.access&` +
+            `scope=users.read%20tweet.read&` +
             `state=${state}&` +
             `code_challenge=${codeChallenge}&` +
             `code_challenge_method=S256`;
@@ -290,9 +290,9 @@ const server = http.createServer(async (req, res) => {
 
         const clientId = process.env.TWITTER_CLIENT_ID;
         const clientSecret = process.env.TWITTER_CLIENT_SECRET;
-        const host = req.headers.host;
-        const protocol = req.headers['x-forwarded-proto'] || 'http';
-        const redirectUri = `${protocol}://${host}/api/auth/twitter/callback`;
+        const host = req.headers['x-forwarded-host'] || req.headers.host;
+        const protocol = req.headers['x-forwarded-proto'] || 'https';
+        const redirectUri = process.env.TWITTER_REDIRECT_URI || `${protocol}://${host}/api/auth/twitter/callback`;
 
         try {
             // 1. Exchange authorization code for access token

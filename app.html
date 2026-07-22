@@ -555,24 +555,8 @@
         const telegramBtn = document.getElementById('connect-telegram-btn');
         const discordBtn = document.getElementById('connect-discord-btn');
 
-        if (twitterBtn) {
-            twitterBtn.addEventListener('click', () => {
-                if (twitterBtn.textContent === 'Connect') {
-                    const handle = prompt("Enter your Twitter handle to authorize alerts:");
-                    if (handle) {
-                        twitterBtn.textContent = 'Connected';
-                        twitterBtn.style.color = '#10B981';
-                        twitterBtn.style.borderColor = '#10B981';
-                        logConsole(`Twitter account @${handle} connected! Alerts active.`);
-                    }
-                } else {
-                    twitterBtn.textContent = 'Connect';
-                    twitterBtn.style.color = '#1DA1F2';
-                    twitterBtn.style.borderColor = '#1DA1F2';
-                    logConsole(`Twitter account disconnected.`);
-                }
-            });
-        }
+        // Twitter (X) button handled via app-main.js OAuth redirect
+
 
         if (telegramBtn) {
             telegramBtn.addEventListener('click', () => {
@@ -821,16 +805,8 @@
             .catch(err => console.error("Error saving socials:", err));
         }
 
-        // Attach DB saves to connect buttons
-        document.getElementById('connect-twitter-btn').addEventListener('click', () => {
-            const btn = document.getElementById('connect-twitter-btn');
-            if (btn.textContent === 'Connect') {
-                const handle = prompt("Enter your Twitter handle:");
-                if (handle) saveSocialConnection('twitter', handle, 'connect-twitter-btn', '#1DA1F2');
-            } else {
-                saveSocialConnection('twitter', null, 'connect-twitter-btn', '#1DA1F2');
-            }
-        });
+        // Twitter (X) OAuth connection handled directly via app-main.js
+
 
         document.getElementById('connect-telegram-btn').addEventListener('click', () => {
             const btn = document.getElementById('connect-telegram-btn');
