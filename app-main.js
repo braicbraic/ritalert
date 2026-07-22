@@ -363,6 +363,10 @@
             addSystemMessage("Please sign the session authentication request in your Web3 wallet...");
             state.walletSignature = await state.signer.signMessage("Authenticate RitAlert Session");
 
+            // Persist session to localStorage for seamless page refreshes & redirects
+            localStorage.setItem('ritalert_connected_wallet', state.walletAddress);
+            localStorage.setItem('ritalert_wallet_signature', state.walletSignature);
+
             // Update UI
             DOM.walletBtn.classList.add('connected');
             DOM.walletBtn.setAttribute('data-full-address', state.walletAddress);
@@ -383,6 +387,35 @@
         }
     }
 
+    async function checkAutoConnectWallet() {
+        const savedWallet = localStorage.getItem('ritalert_connected_wallet');
+        const savedSignature = localStorage.getItem('ritalert_wallet_signature');
+
+        if (!savedWallet || !savedSignature || typeof window.ethereum === 'undefined') return;
+
+        try {
+            state.provider = new ethers.BrowserProvider(window.ethereum);
+            const accounts = await state.provider.send('eth_accounts', []);
+            if (accounts && accounts.length > 0 && accounts[0].toLowerCase() === savedWallet.toLowerCase()) {
+                state.signer = await state.provider.getSigner();
+                state.walletAddress = savedWallet;
+                state.walletSignature = savedSignature;
+
+                // Update UI automatically without asking user to re-sign
+                DOM.walletBtn.classList.add('connected');
+                DOM.walletBtn.setAttribute('data-full-address', state.walletAddress);
+                DOM.walletBtn.setAttribute('data-signature', state.walletSignature);
+                DOM.walletBtnText.innerHTML = `<span class="wallet-dot"></span> ${abbreviate(state.walletAddress)}`;
+                DOM.statusWallet.textContent = `Wallet: ${abbreviate(state.walletAddress)}`;
+
+                // Load tracking list from DB
+                loadDBTrackedHistory(state.walletAddress);
+            }
+        } catch (err) {
+            console.error("Auto wallet reconnect failed:", err);
+        }
+    }
+
     async function pollBlockNumber() {
         if (!state.provider) return;
         try {
@@ -397,9 +430,25 @@
     }
 
     function initWallet() {
+        // Attempt seamless auto-reconnect on load/refresh/redirect
+        checkAutoConnectWallet();
+
         DOM.walletBtn.addEventListener('click', () => {
             if (state.walletAddress) {
-                // Already connected — could show disconnect option
+                // Already connected — offer disconnect
+                if (confirm(`Disconnect wallet ${abbreviate(state.walletAddress)}?`)) {
+                    localStorage.removeItem('ritalert_connected_wallet');
+                    localStorage.removeItem('ritalert_wallet_signature');
+                    state.walletAddress = null;
+                    state.signer = null;
+                    state.walletSignature = null;
+                    DOM.walletBtn.classList.remove('connected');
+                    DOM.walletBtn.removeAttribute('data-full-address');
+                    DOM.walletBtn.removeAttribute('data-signature');
+                    DOM.walletBtnText.textContent = 'Connect Wallet';
+                    DOM.statusWallet.textContent = 'Wallet: Not connected';
+                    addSystemMessage('Wallet disconnected');
+                }
                 return;
             }
             connectWallet();
@@ -409,8 +458,11 @@
         if (typeof window.ethereum !== 'undefined') {
             window.ethereum.on('accountsChanged', (accounts) => {
                 if (accounts.length === 0) {
+                    localStorage.removeItem('ritalert_connected_wallet');
+                    localStorage.removeItem('ritalert_wallet_signature');
                     state.walletAddress = null;
                     state.signer = null;
+                    state.walletSignature = null;
                     DOM.walletBtn.classList.remove('connected');
                     DOM.walletBtn.removeAttribute('data-full-address');
                     DOM.walletBtnText.textContent = 'Connect Wallet';
