@@ -17,8 +17,14 @@ try {
         networks: [mainnet, arbitrum, polygon, optimism, base],
         metadata,
         projectId,
+        enableInjected: true,
+        enableEIP6963: true,
+        enableCoinbase: true,
+        allWallets: 'SHOW',
         features: {
-            analytics: true
+            analytics: true,
+            email: false,
+            socials: []
         }
     });
     window.reownAppKitModal = modal;

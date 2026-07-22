@@ -352,7 +352,7 @@
     async function connectWallet() {
         if (window.reownAppKitModal) {
             try {
-                window.reownAppKitModal.open();
+                window.reownAppKitModal.open({ view: 'Connect' });
                 return;
             } catch (err) {
                 console.error("Reown AppKit open error:", err);
@@ -360,7 +360,7 @@
         } else {
             console.warn("Reown AppKit modal initializing... retrying");
             setTimeout(() => {
-                if (window.reownAppKitModal) window.reownAppKitModal.open();
+                if (window.reownAppKitModal) window.reownAppKitModal.open({ view: 'Connect' });
             }, 300);
         }
     }
