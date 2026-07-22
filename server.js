@@ -116,13 +116,19 @@ function isValidUuid(val) {
     return typeof val === 'string' && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(val);
 }
 
-// In-memory PKCE state store for Twitter OAuth 2.0
+// In-memory PKCE & OAuth state store for Twitter & Discord OAuth 2.0
 const twitterOauthStateStore = {};
+const discordOauthStateStore = {};
 setInterval(() => {
     const now = Date.now();
     Object.keys(twitterOauthStateStore).forEach(st => {
         if (now - twitterOauthStateStore[st].createdAt > 15 * 60 * 1000) {
             delete twitterOauthStateStore[st];
+        }
+    });
+    Object.keys(discordOauthStateStore).forEach(st => {
+        if (now - discordOauthStateStore[st].createdAt > 15 * 60 * 1000) {
+            delete discordOauthStateStore[st];
         }
     });
 }, 15 * 60 * 1000);
