@@ -379,8 +379,9 @@
             // Start block polling
             pollBlockNumber();
             
-            // Load tracking list from database
+            // Load tracking list and social connections from database
             loadDBTrackedHistory(state.walletAddress);
+            if (window.loadDBSocials) window.loadDBSocials(state.walletAddress);
         } catch (err) {
             console.error('Wallet connection failed:', err);
             addAIMessage(`Wallet authentication failed: ${err.message}`);
@@ -408,8 +409,9 @@
                 DOM.walletBtnText.innerHTML = `<span class="wallet-dot"></span> ${abbreviate(state.walletAddress)}`;
                 DOM.statusWallet.textContent = `Wallet: ${abbreviate(state.walletAddress)}`;
 
-                // Load tracking list from DB
+                // Load tracking list and social connections from DB
                 loadDBTrackedHistory(state.walletAddress);
+                if (window.loadDBSocials) window.loadDBSocials(state.walletAddress);
             }
         } catch (err) {
             console.error("Auto wallet reconnect failed:", err);
@@ -1080,6 +1082,75 @@
             });
         });
 
+        // ===== SOCIAL CONNECTIONS DATABASE INTEGRATION =====
+        async function loadDBSocials(walletAddress) {
+            if (!walletAddress) return;
+            try {
+                const res = await fetch(`/api/db/get-socials?walletAddress=${walletAddress}`);
+                const data = await res.json();
+                if (data.socials) {
+                    updateSocialsUI(data.socials);
+                }
+            } catch (err) {
+                console.error("Error loading DB socials:", err);
+            }
+        }
+
+        function updateSocialsUI(socials) {
+            const twitterBtn = document.getElementById('connect-twitter-btn');
+            const telegramBtn = document.getElementById('connect-telegram-btn');
+            const discordBtn = document.getElementById('connect-discord-btn');
+
+            if (twitterBtn && socials.twitter_handle) {
+                twitterBtn.textContent = `Connected (${socials.twitter_handle})`;
+                twitterBtn.style.color = '#10B981';
+                twitterBtn.style.borderColor = '#10B981';
+            }
+            if (telegramBtn && socials.telegram_username) {
+                telegramBtn.textContent = `Connected (${socials.telegram_username})`;
+                telegramBtn.style.color = '#10B981';
+                telegramBtn.style.borderColor = '#10B981';
+            }
+            if (discordBtn && socials.discord_webhook) {
+                discordBtn.textContent = `Connected`;
+                discordBtn.style.color = '#10B981';
+                discordBtn.style.borderColor = '#10B981';
+            }
+        }
+
+        async function saveSocialConnection(platform, handleValue, btnElement, defaultColor) {
+            if (!state.walletAddress) return false;
+            try {
+                const res = await fetch('/api/db/save-socials', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        walletAddress: state.walletAddress,
+                        platform: platform,
+                        handleValue: handleValue,
+                        signature: state.walletSignature
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    if (handleValue) {
+                        btnElement.textContent = platform === 'discord' ? 'Connected' : `Connected (${handleValue})`;
+                        btnElement.style.color = '#10B981';
+                        btnElement.style.borderColor = '#10B981';
+                    } else {
+                        btnElement.textContent = 'Connect';
+                        btnElement.style.color = defaultColor;
+                        btnElement.style.borderColor = defaultColor;
+                    }
+                    return true;
+                }
+                return false;
+            } catch (err) {
+                console.error("Error saving social connection:", err);
+                return false;
+            }
+        }
+
         // Twitter (X) OAuth 2.0 Connect Handler
         const connectTwitterBtn = document.getElementById('connect-twitter-btn');
         if (connectTwitterBtn) {
@@ -1092,6 +1163,69 @@
             });
         }
 
+        // Telegram Profile Connect Handler
+        const connectTelegramBtn = document.getElementById('connect-telegram-btn');
+        if (connectTelegramBtn) {
+            connectTelegramBtn.addEventListener('click', async () => {
+                if (!state.walletAddress) {
+                    alert('Please connect your Web3 wallet first to link your Telegram profile.');
+                    return;
+                }
+
+                if (connectTelegramBtn.textContent.startsWith('Connected')) {
+                    if (confirm("Disconnect your linked Telegram profile?")) {
+                        await saveSocialConnection('telegram', null, connectTelegramBtn, '#0088cc');
+                        addSystemMessage('Disconnected Telegram profile');
+                    }
+                    return;
+                }
+
+                const username = prompt("Enter your Telegram username (e.g. @username):");
+                if (username && username.trim()) {
+                    const cleanUser = username.trim().startsWith('@') ? username.trim() : `@${username.trim()}`;
+                    const success = await saveSocialConnection('telegram', cleanUser, connectTelegramBtn, '#0088cc');
+                    if (success) {
+                        addSystemMessage(`Linked Telegram profile: ${cleanUser}`);
+                        alert(`🎉 Successfully connected Telegram profile ${cleanUser}!`);
+                    } else {
+                        alert('Failed to save Telegram profile to database.');
+                    }
+                }
+            });
+        }
+
+        // Discord Webhook Connect Handler
+        const connectDiscordBtn = document.getElementById('connect-discord-btn');
+        if (connectDiscordBtn) {
+            connectDiscordBtn.addEventListener('click', async () => {
+                if (!state.walletAddress) {
+                    alert('Please connect your Web3 wallet first to link your Discord account.');
+                    return;
+                }
+
+                if (connectDiscordBtn.textContent.startsWith('Connected')) {
+                    if (confirm("Disconnect your linked Discord webhook?")) {
+                        await saveSocialConnection('discord', null, connectDiscordBtn, '#5865F2');
+                        addSystemMessage('Disconnected Discord webhook');
+                    }
+                    return;
+                }
+
+                const webhook = prompt("Enter your Discord Webhook URL:");
+                if (webhook && webhook.trim().startsWith('https://discord.com/api/webhooks/')) {
+                    const success = await saveSocialConnection('discord', webhook.trim(), connectDiscordBtn, '#5865F2');
+                    if (success) {
+                        addSystemMessage('Linked Discord Webhook');
+                        alert('🎉 Successfully connected Discord Webhook!');
+                    } else {
+                        alert('Failed to save Discord Webhook to database.');
+                    }
+                } else if (webhook) {
+                    alert('Invalid Discord Webhook URL. It should start with https://discord.com/api/webhooks/');
+                }
+            });
+        }
+
         // Check for Twitter OAuth Callback URL Parameters
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('social_connected') === 'twitter') {
@@ -1100,6 +1234,9 @@
             addSystemMessage(`Connected Twitter (X) account: ${handle}`);
             window.history.replaceState({}, document.title, window.location.pathname);
         }
+
+        // Expose loadDBSocials globally so wallet connect triggers it
+        window.loadDBSocials = loadDBSocials;
     }
 
     function updateNotificationsStatus() {
