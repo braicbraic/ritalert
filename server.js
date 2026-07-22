@@ -252,8 +252,8 @@ const server = http.createServer(async (req, res) => {
             return res.end(JSON.stringify({ error: "TWITTER_CLIENT_ID not configured on server" }));
         }
 
-        // Generate PKCE verifier, challenge and state
-        const codeVerifier = crypto.randomBytes(32).toString('hex');
+        // Generate PKCE verifier, challenge and state according to Twitter API v2 spec
+        const codeVerifier = crypto.randomBytes(32).toString('base64url');
         const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
         const state = crypto.randomBytes(16).toString('hex');
 
@@ -263,14 +263,14 @@ const server = http.createServer(async (req, res) => {
         const protocol = req.headers['x-forwarded-proto'] || 'https';
         const redirectUri = process.env.TWITTER_REDIRECT_URI || `${protocol}://${host}/api/auth/twitter/callback`;
 
-        const authUrl = `https://x.com/i/oauth2/authorize?` +
+        const authUrl = `https://twitter.com/i/oauth2/authorize?` +
             `response_type=code&` +
             `client_id=${clientId}&` +
             `redirect_uri=${encodeURIComponent(redirectUri)}&` +
             `scope=users.read%20tweet.read&` +
             `state=${state}&` +
             `code_challenge=${codeChallenge}&` +
-            `code_challenge_method=S256`;
+            `code_challenge_method=s256`;
 
         console.log("🔗 Generated Twitter Auth URL:", authUrl);
 
