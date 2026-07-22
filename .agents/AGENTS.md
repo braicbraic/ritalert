@@ -1,9 +1,11 @@
 # RitAlert Project Architecture & Security Guidelines
 
-## 1. Web3 Session & Wallet Connection Rules
-* **Provider**: Uses EIP-1193 standard `window.ethereum` via `ethers.BrowserProvider`.
+## 1. Web3 Wallet Connection Rules (Reown AppKit / WalletConnect)
+* **Library**: `@reown/appkit` (formerly WalletConnect AppKit / Web3Modal) with `@reown/appkit-adapter-ethers`.
+* **Cloud Project ID**: `8422e6900f40d4653634e7a2b979401d` configured for domain `ritalert.netlify.app`.
+* **Multi-Wallet Support**: QR code scanning across 300+ mobile wallets (Trust Wallet, Rainbow, Metamask Mobile, Zerion, etc.), injected browser extensions (MetaMask, Rabby, Coinbase Wallet), and social/email logins.
 * **LocalStorage Keys**: Store `ritalert_connected_wallet` and `ritalert_wallet_signature` upon successful wallet authentication.
-* **Auto-Reconnect**: On `DOMContentLoaded`, invoke `checkAutoConnectWallet()` using `state.provider.send('eth_accounts', [])`. If the connected account matches the saved address, restore session state and load DB tracking items immediately without prompting the user to re-sign.
+* **Auto-Reconnect**: On `DOMContentLoaded`, invoke `checkAutoConnectWallet()` using `state.provider.send('eth_accounts', [])` or Reown session provider. If the connected account matches the saved address, restore session state and load DB tracking items immediately without prompting the user to re-sign.
 
 ## 2. Twitter (X) OAuth 2.0 PKCE Integration Rules
 * **Authorization Endpoint**: Always request `https://twitter.com/i/oauth2/authorize` (do NOT use `x.com/i/oauth2/authorize` as Twitter's backend OAuth router rejects direct x.com domain requests).

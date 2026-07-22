@@ -348,10 +348,19 @@
         });
     }
 
-    // ===== WALLET CONNECTION =====
+    // ===== WALLET CONNECTION (Reown AppKit + Injected Fallback) =====
     async function connectWallet() {
+        if (window.reownAppKitModal) {
+            try {
+                window.reownAppKitModal.open();
+                return;
+            } catch (err) {
+                console.warn("Reown AppKit open notice, falling back to injected wallet:", err);
+            }
+        }
+
         if (typeof window.ethereum === 'undefined') {
-            addAIMessage('No Web3 wallet detected. Please install MetaMask, Rabby, or another browser wallet to connect.');
+            addAIMessage('No Web3 wallet detected. Please install MetaMask, Rabby, or connect via Reown AppKit.');
             return;
         }
 
@@ -431,22 +440,61 @@
         setTimeout(pollBlockNumber, 15000);
     }
 
+    function initReownAppKitSubscriber() {
+        if (!window.reownAppKitModal) return;
+        try {
+            window.reownAppKitModal.subscribeProvider(async (providerInfo) => {
+                if (providerInfo && providerInfo.provider) {
+                    try {
+                        state.provider = new ethers.BrowserProvider(providerInfo.provider);
+                        state.signer = await state.provider.getSigner();
+                        state.walletAddress = await state.signer.getAddress();
+
+                        if (!localStorage.getItem('ritalert_wallet_signature')) {
+                            addSystemMessage("Please sign the session authentication request in your connected wallet...");
+                            state.walletSignature = await state.signer.signMessage("Authenticate RitAlert Session");
+                            localStorage.setItem('ritalert_wallet_signature', state.walletSignature);
+                        } else {
+                            state.walletSignature = localStorage.getItem('ritalert_wallet_signature');
+                        }
+
+                        localStorage.setItem('ritalert_connected_wallet', state.walletAddress);
+
+                        DOM.walletBtn.classList.add('connected');
+                        DOM.walletBtn.setAttribute('data-full-address', state.walletAddress);
+                        DOM.walletBtn.setAttribute('data-signature', state.walletSignature);
+                        DOM.walletBtnText.innerHTML = `<span class="wallet-dot"></span> ${abbreviate(state.walletAddress)}`;
+                        DOM.statusWallet.textContent = `Wallet: ${abbreviate(state.walletAddress)}`;
+
+                        addSystemMessage(`Reown WalletConnect authenticated: ${abbreviate(state.walletAddress)}`);
+
+                        pollBlockNumber();
+                        loadDBTrackedHistory(state.walletAddress);
+                        if (window.loadDBSocials) window.loadDBSocials(state.walletAddress);
+                    } catch (err) {
+                        console.error("Reown provider setup error:", err);
+                    }
+                }
+            });
+        } catch (e) {
+            console.warn("Reown subscriber notice:", e);
+        }
+    }
+
     function initWallet() {
+        // Register Reown AppKit subscriber
+        initReownAppKitSubscriber();
+
         // Attempt seamless auto-reconnect on load/refresh/redirect
         checkAutoConnectWallet();
 
         DOM.walletBtn.addEventListener('click', () => {
-            if (state.walletAddress) {
-                // Already connected — offer disconnect
+            if (!state.walletAddress) {
+                connectWallet();
+            } else {
                 if (confirm(`Disconnect wallet ${abbreviate(state.walletAddress)}?`)) {
                     localStorage.removeItem('ritalert_connected_wallet');
                     localStorage.removeItem('ritalert_wallet_signature');
-                    state.walletAddress = null;
-                    state.signer = null;
-                    state.walletSignature = null;
-                    DOM.walletBtn.classList.remove('connected');
-                    DOM.walletBtn.removeAttribute('data-full-address');
-                    DOM.walletBtn.removeAttribute('data-signature');
                     DOM.walletBtnText.textContent = 'Connect Wallet';
                     DOM.statusWallet.textContent = 'Wallet: Not connected';
                     addSystemMessage('Wallet disconnected');
