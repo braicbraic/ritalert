@@ -808,25 +808,8 @@
         // Twitter (X) OAuth connection handled directly via app-main.js
 
 
-        document.getElementById('connect-telegram-btn').addEventListener('click', () => {
-            const btn = document.getElementById('connect-telegram-btn');
-            if (btn.textContent === 'Connect') {
-                const handle = prompt("Enter Telegram username:");
-                if (handle) saveSocialConnection('telegram', handle, 'connect-telegram-btn', '#0088cc');
-            } else {
-                saveSocialConnection('telegram', null, 'connect-telegram-btn', '#0088cc');
-            }
-        });
+        // Telegram and Discord social connections handled directly via app-main.js
 
-        document.getElementById('connect-discord-btn').addEventListener('click', () => {
-            const btn = document.getElementById('connect-discord-btn');
-            if (btn.textContent === 'Connect') {
-                const webhook = prompt("Enter Discord Webhook URL:");
-                if (webhook) saveSocialConnection('discord', webhook, 'connect-discord-btn', '#5865F2');
-            } else {
-                saveSocialConnection('discord', null, 'connect-discord-btn', '#5865F2');
-            }
-        });
 
         // Function to trigger trial activation
         function activateTrial(address) {
