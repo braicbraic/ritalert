@@ -513,37 +513,7 @@
 
     <!-- ========== SCRIPTS ========== -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
-    <script type="module">
-        import { createAppKit } from 'https://cdn.jsdelivr.net/npm/@reown/appkit@1.8.23/+esm';
-        import { EthersAdapter } from 'https://cdn.jsdelivr.net/npm/@reown/appkit-adapter-ethers@1.8.23/+esm';
-        import { mainnet, arbitrum, polygon, optimism, base } from 'https://cdn.jsdelivr.net/npm/@reown/appkit@1.8.23/networks/+esm';
-
-        // Reown Cloud Project ID for RitAlert (WalletConnect)
-        const projectId = '8422e6900f40d4653634e7a2b979401d';
-
-        const metadata = {
-            name: 'RitAlert',
-            description: 'AI-Powered Sovereign Web3 Transaction Tracker & Security Alerting',
-            url: window.location.origin,
-            icons: [`${window.location.origin}/favicon.ico`]
-        };
-
-        try {
-            const modal = createAppKit({
-                adapters: [new EthersAdapter()],
-                networks: [mainnet, arbitrum, polygon, optimism, base],
-                metadata,
-                projectId,
-                features: {
-                    analytics: true
-                }
-            });
-            window.reownAppKitModal = modal;
-            console.log("⚡ Reown AppKit (WalletConnect) initialized successfully!");
-        } catch (err) {
-            console.warn("Reown AppKit initialization notice:", err);
-        }
-    </script>
+    <script src="reown-bundle.js"></script>
     <script src="app-main.js"></script>
     <script>
     (function() {

@@ -348,52 +348,20 @@
         });
     }
 
-    // ===== WALLET CONNECTION (Reown AppKit + Injected Fallback) =====
+    // ===== WALLET CONNECTION (Reown AppKit Modal Exclusive) =====
     async function connectWallet() {
         if (window.reownAppKitModal) {
             try {
                 window.reownAppKitModal.open();
                 return;
             } catch (err) {
-                console.warn("Reown AppKit open notice, falling back to injected wallet:", err);
+                console.error("Reown AppKit open error:", err);
             }
-        }
-
-        if (typeof window.ethereum === 'undefined') {
-            addAIMessage('No Web3 wallet detected. Please install MetaMask, Rabby, or connect via Reown AppKit.');
-            return;
-        }
-
-        try {
-            state.provider = new ethers.BrowserProvider(window.ethereum);
-            state.signer = await state.provider.getSigner();
-            state.walletAddress = await state.signer.getAddress();
-            // Ask the user to sign the session authentication message
-            addSystemMessage("Please sign the session authentication request in your Web3 wallet...");
-            state.walletSignature = await state.signer.signMessage("Authenticate RitAlert Session");
-
-            // Persist session to localStorage for seamless page refreshes & redirects
-            localStorage.setItem('ritalert_connected_wallet', state.walletAddress);
-            localStorage.setItem('ritalert_wallet_signature', state.walletSignature);
-
-            // Update UI
-            DOM.walletBtn.classList.add('connected');
-            DOM.walletBtn.setAttribute('data-full-address', state.walletAddress);
-            DOM.walletBtn.setAttribute('data-signature', state.walletSignature);
-            DOM.walletBtnText.innerHTML = `<span class="wallet-dot"></span> ${abbreviate(state.walletAddress)}`;
-            DOM.statusWallet.textContent = `Wallet: ${abbreviate(state.walletAddress)}`;
-
-            addSystemMessage(`Wallet authenticated: ${abbreviate(state.walletAddress)}`);
-
-            // Start block polling
-            pollBlockNumber();
-            
-            // Load tracking list and social connections from database
-            loadDBTrackedHistory(state.walletAddress);
-            if (window.loadDBSocials) window.loadDBSocials(state.walletAddress);
-        } catch (err) {
-            console.error('Wallet connection failed:', err);
-            addAIMessage(`Wallet authentication failed: ${err.message}`);
+        } else {
+            console.warn("Reown AppKit modal initializing... retrying");
+            setTimeout(() => {
+                if (window.reownAppKitModal) window.reownAppKitModal.open();
+            }, 300);
         }
     }
 
