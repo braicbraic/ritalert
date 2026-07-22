@@ -272,6 +272,8 @@ const server = http.createServer(async (req, res) => {
             `code_challenge=${codeChallenge}&` +
             `code_challenge_method=S256`;
 
+        console.log("🔗 Generated Twitter Auth URL:", authUrl);
+
         res.writeHead(302, { Location: authUrl });
         return res.end();
     }
