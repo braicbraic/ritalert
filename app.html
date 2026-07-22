@@ -431,6 +431,24 @@
         </div>
     </div>
 
+    <!-- ========== TELEGRAM CONNECT MODAL ========== -->
+    <div class="modal-overlay" id="telegram-modal-overlay">
+        <div class="modal" style="max-width:380px;">
+            <div class="modal-header">
+                <h3 class="modal-title">✈️ Connect Telegram Profile</h3>
+                <button class="modal-close" id="telegram-modal-close">✕</button>
+            </div>
+            <div style="padding: 0.5rem 0;">
+                <div class="form-group">
+                    <label class="form-label">Telegram Username</label>
+                    <input type="text" class="form-input" id="telegram-modal-input" placeholder="@username" style="width:100%; box-sizing:border-box;">
+                    <div class="form-hint" style="color: var(--white-40); margin-top: 0.25rem;">Enter your Telegram handle to verify social link.</div>
+                </div>
+                <button class="btn-modal-primary" id="telegram-modal-save-btn" style="width:100%; margin-top:1rem;">Save Telegram Handle</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ========== UPGRADE/BILLING MODAL ========== -->
     <div class="modal-overlay" id="upgrade-modal-overlay">
         <div class="modal" style="max-width:500px;">
@@ -568,45 +586,7 @@
         const discordBtn = document.getElementById('connect-discord-btn');
 
         // Twitter (X) button handled via app-main.js OAuth redirect
-
-
-        if (telegramBtn) {
-            telegramBtn.addEventListener('click', () => {
-                if (telegramBtn.textContent === 'Connect') {
-                    const username = prompt("Enter your Telegram username to connect RitAlertBot:");
-                    if (username) {
-                        telegramBtn.textContent = 'Connected';
-                        telegramBtn.style.color = '#10B981';
-                        telegramBtn.style.borderColor = '#10B981';
-                        logConsole(`Telegram user @${username} connected! Real-time alerts enabled.`);
-                    }
-                } else {
-                    telegramBtn.textContent = 'Connect';
-                    telegramBtn.style.color = '#0088cc';
-                    telegramBtn.style.borderColor = '#0088cc';
-                    logConsole(`Telegram Bot alert channel disconnected.`);
-                }
-            });
-        }
-
-        if (discordBtn) {
-            discordBtn.addEventListener('click', () => {
-                if (discordBtn.textContent === 'Connect') {
-                    const webhookUrl = prompt("Enter Discord Webhook URL to stream notifications:");
-                    if (webhookUrl) {
-                        discordBtn.textContent = 'Connected';
-                        discordBtn.style.color = '#10B981';
-                        discordBtn.style.borderColor = '#10B981';
-                        logConsole(`Discord Webhook configured successfully! Channels active.`);
-                    }
-                } else {
-                    discordBtn.textContent = 'Connect';
-                    discordBtn.style.color = '#5865F2';
-                    discordBtn.style.borderColor = '#5865F2';
-                    logConsole(`Discord Webhook disconnected.`);
-                }
-            });
-        }
+        // Telegram and Discord social connections handled via app-main.js
 
         // --- UPGRADE MODAL ROUTING ---
         upgradeTierBtn.addEventListener('click', () => {

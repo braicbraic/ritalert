@@ -1163,8 +1163,13 @@
             });
         }
 
-        // Telegram Profile Connect Handler
+        // Telegram Profile Connect Handler (Custom Modal)
         const connectTelegramBtn = document.getElementById('connect-telegram-btn');
+        const telegramModalOverlay = document.getElementById('telegram-modal-overlay');
+        const telegramModalClose = document.getElementById('telegram-modal-close');
+        const telegramModalInput = document.getElementById('telegram-modal-input');
+        const telegramModalSaveBtn = document.getElementById('telegram-modal-save-btn');
+
         if (connectTelegramBtn) {
             connectTelegramBtn.addEventListener('click', async () => {
                 if (!state.walletAddress) {
@@ -1180,13 +1185,29 @@
                     return;
                 }
 
-                const username = prompt("Enter your Telegram username (e.g. @username):");
+                if (telegramModalOverlay) {
+                    telegramModalOverlay.classList.add('active');
+                    if (telegramModalInput) telegramModalInput.focus();
+                }
+            });
+        }
+
+        if (telegramModalClose) {
+            telegramModalClose.addEventListener('click', () => {
+                if (telegramModalOverlay) telegramModalOverlay.classList.remove('active');
+            });
+        }
+
+        if (telegramModalSaveBtn) {
+            telegramModalSaveBtn.addEventListener('click', async () => {
+                const username = telegramModalInput ? telegramModalInput.value : '';
                 if (username && username.trim()) {
                     const cleanUser = username.trim().startsWith('@') ? username.trim() : `@${username.trim()}`;
                     const success = await saveSocialConnection('telegram', cleanUser, connectTelegramBtn, '#0088cc');
                     if (success) {
                         addSystemMessage(`Linked Telegram profile: ${cleanUser}`);
                         alert(`🎉 Successfully connected Telegram profile ${cleanUser}!`);
+                        if (telegramModalOverlay) telegramModalOverlay.classList.remove('active');
                     } else {
                         alert('Failed to save Telegram profile to database.');
                     }
