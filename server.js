@@ -263,7 +263,7 @@ const server = http.createServer(async (req, res) => {
         const protocol = req.headers['x-forwarded-proto'] || 'https';
         const redirectUri = process.env.TWITTER_REDIRECT_URI || `${protocol}://${host}/api/auth/twitter/callback`;
 
-        const authUrl = `https://twitter.com/i/oauth2/authorize?` +
+        const authUrl = `https://x.com/i/oauth2/authorize?` +
             `response_type=code&` +
             `client_id=${clientId}&` +
             `redirect_uri=${encodeURIComponent(redirectUri)}&` +
