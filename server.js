@@ -116,6 +116,17 @@ function isValidUuid(val) {
     return typeof val === 'string' && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(val);
 }
 
+// In-memory PKCE state store for Twitter OAuth 2.0
+const twitterOauthStateStore = {};
+setInterval(() => {
+    const now = Date.now();
+    Object.keys(twitterOauthStateStore).forEach(st => {
+        if (now - twitterOauthStateStore[st].createdAt > 15 * 60 * 1000) {
+            delete twitterOauthStateStore[st];
+        }
+    });
+}, 15 * 60 * 1000);
+
 const server = http.createServer(async (req, res) => {
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
 
@@ -225,6 +236,115 @@ const server = http.createServer(async (req, res) => {
         const success = await db.dbSaveSocials(walletAddress, platform, handleValue);
         res.writeHead(success ? 200 : 500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
         return res.end(JSON.stringify({ success }));
+    }
+
+    // --- TWITTER OAUTH 2.0 PKCE ROUTES ---
+    if (pathname === '/api/auth/twitter/login' && req.method === 'GET') {
+        const walletAddress = parsedUrl.searchParams.get('walletAddress');
+        if (!isValidAddress(walletAddress)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: "Invalid wallet address parameter. Connect your Web3 wallet first." }));
+        }
+
+        const clientId = process.env.TWITTER_CLIENT_ID;
+        if (!clientId) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: "TWITTER_CLIENT_ID not configured on server" }));
+        }
+
+        // Generate PKCE verifier, challenge and state
+        const codeVerifier = crypto.randomBytes(32).toString('hex');
+        const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+        const state = crypto.randomBytes(16).toString('hex');
+
+        twitterOauthStateStore[state] = { walletAddress, codeVerifier, createdAt: Date.now() };
+
+        const host = req.headers.host;
+        const protocol = req.headers['x-forwarded-proto'] || 'http';
+        const redirectUri = `${protocol}://${host}/api/auth/twitter/callback`;
+
+        const authUrl = `https://twitter.com/i/oauth2/authorize?` +
+            `response_type=code&` +
+            `client_id=${clientId}&` +
+            `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+            `scope=tweet.read%20users.read%20offline.access&` +
+            `state=${state}&` +
+            `code_challenge=${codeChallenge}&` +
+            `code_challenge_method=S256`;
+
+        res.writeHead(302, { Location: authUrl });
+        return res.end();
+    }
+
+    if (pathname === '/api/auth/twitter/callback' && req.method === 'GET') {
+        const code = parsedUrl.searchParams.get('code');
+        const state = parsedUrl.searchParams.get('state');
+
+        if (!code || !state || !twitterOauthStateStore[state]) {
+            res.writeHead(400, { 'Content-Type': 'text/html' });
+            return res.end('<h2>Authentication Error: Invalid or expired OAuth state</h2><a href="/app.html">Return to App</a>');
+        }
+
+        const { walletAddress, codeVerifier } = twitterOauthStateStore[state];
+        delete twitterOauthStateStore[state];
+
+        const clientId = process.env.TWITTER_CLIENT_ID;
+        const clientSecret = process.env.TWITTER_CLIENT_SECRET;
+        const host = req.headers.host;
+        const protocol = req.headers['x-forwarded-proto'] || 'http';
+        const redirectUri = `${protocol}://${host}/api/auth/twitter/callback`;
+
+        try {
+            // 1. Exchange authorization code for access token
+            const tokenParams = new URLSearchParams({
+                code: code,
+                grant_type: 'authorization_code',
+                client_id: clientId,
+                redirect_uri: redirectUri,
+                code_verifier: codeVerifier
+            });
+
+            const tokenHeaders = {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            };
+            if (clientSecret) {
+                tokenHeaders['Authorization'] = 'Basic ' + Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+            }
+
+            const tokenRes = await fetch('https://api.twitter.com/2/oauth2/token', {
+                method: 'POST',
+                headers: tokenHeaders,
+                body: tokenParams.toString()
+            });
+
+            const tokenData = await tokenRes.json();
+            if (!tokenData.access_token) {
+                console.error("Twitter token exchange failed:", tokenData);
+                res.writeHead(500, { 'Content-Type': 'text/html' });
+                return res.end(`<h2>Twitter Auth Failed: ${tokenData.error_description || tokenData.error || 'Token exchange failed'}</h2><a href="/app.html">Return to App</a>`);
+            }
+
+            // 2. Fetch user profile handle via Twitter v2 API
+            const userRes = await fetch('https://api.twitter.com/2/users/me', {
+                headers: {
+                    'Authorization': `Bearer ${tokenData.access_token}`
+                }
+            });
+
+            const userData = await userRes.json();
+            const twitterHandle = (userData.data && userData.data.username) ? `@${userData.data.username}` : '@unknown';
+
+            // 3. Save Twitter handle to database
+            await db.dbSaveSocials(walletAddress, 'twitter', twitterHandle);
+
+            // 4. Redirect user back to dashboard with notification
+            res.writeHead(302, { Location: `/app.html?social_connected=twitter&handle=${encodeURIComponent(twitterHandle)}` });
+            return res.end();
+        } catch (err) {
+            console.error("Twitter OAuth callback error:", err);
+            res.writeHead(500, { 'Content-Type': 'text/html' });
+            return res.end(`<h2>Twitter Authentication Error: ${err.message}</h2><a href="/app.html">Return to App</a>`);
+        }
     }
 
     // --- SECURE TELEGRAM SENDER ROUTE ---

@@ -1027,6 +1027,27 @@
                 }
             });
         });
+
+        // Twitter (X) OAuth 2.0 Connect Handler
+        const connectTwitterBtn = document.getElementById('connect-twitter-btn');
+        if (connectTwitterBtn) {
+            connectTwitterBtn.addEventListener('click', () => {
+                if (!state.walletAddress) {
+                    alert('Please connect your Web3 wallet first to link your Twitter (X) account.');
+                    return;
+                }
+                window.location.href = `/api/auth/twitter/login?walletAddress=${state.walletAddress}`;
+            });
+        }
+
+        // Check for Twitter OAuth Callback URL Parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('social_connected') === 'twitter') {
+            const handle = urlParams.get('handle') || 'account';
+            alert(`🎉 Successfully connected Twitter (X) account ${handle}!`);
+            addSystemMessage(`Connected Twitter (X) account: ${handle}`);
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
     }
 
     function updateNotificationsStatus() {
