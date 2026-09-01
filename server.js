@@ -136,15 +136,15 @@ setInterval(() => {
 const server = http.createServer(async (req, res) => {
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
 
-    // Global rate limiting (max 60 requests per minute per IP)
-    if (!checkRateLimit(ip, 60, 60 * 1000)) {
-        res.writeHead(429, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
-        return res.end(JSON.stringify({ error: "Too many requests. Please try again later." }));
-    }
-
     // Parse URL and query params
     const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
     const pathname = parsedUrl.pathname;
+
+    // Rate limiting for API endpoints (exempt static assets like .js, .html, .css)
+    if (pathname.startsWith('/api/') && !checkRateLimit(ip, 300, 60 * 1000)) {
+        res.writeHead(429, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify({ error: "Too many requests. Please try again later." }));
+    }
 
     // --- DATABASE API ROUTES ---
     if (pathname === '/api/db/subscription' && req.method === 'GET') {
@@ -243,7 +243,42 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(success ? 200 : 500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://localhost:8000' });
         return res.end(JSON.stringify({ success }));
     }
+    if (pathname === '/api/explorer/transactions' && req.method === 'GET') {
+        const address = parsedUrl.searchParams.get('address');
+        const chain = parsedUrl.searchParams.get('chain') || 'ritual';
 
+        if (!isValidAddress(address)) {
+            res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            return res.end(JSON.stringify({ error: "Invalid address parameter" }));
+        }
+
+        try {
+            let targetUrl = '';
+            if (chain === 'ritual') {
+                targetUrl = `https://explorer.ritualfoundation.org/api/v2/addresses/${address}/transactions`;
+            } else if (chain === 'ethereum') {
+                targetUrl = `https://eth.blockscout.com/api/v2/addresses/${address}/transactions`;
+            }
+
+            let responseData = null;
+            if (targetUrl) {
+                try {
+                    const fetchRes = await fetch(targetUrl, { headers: { 'User-Agent': 'Mozilla/5.0 RitAlert' } });
+                    if (fetchRes.ok) {
+                        responseData = await fetchRes.json();
+                    }
+                } catch (err) {
+                    console.error("Backend Explorer proxy fetch error:", err.message);
+                }
+            }
+
+            res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            return res.end(JSON.stringify(responseData || { items: [] }));
+        } catch (err) {
+            res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            return res.end(JSON.stringify({ items: [] }));
+        }
+    }
     // --- TWITTER OAUTH 2.0 PKCE ROUTES ---
     if (pathname === '/api/auth/twitter/login' && req.method === 'GET') {
         const walletAddress = parsedUrl.searchParams.get('walletAddress');
@@ -697,7 +732,13 @@ const server = http.createServer(async (req, res) => {
     }
 
     // --- STATIC FILES SERVER (Replaces Python server on port 8000) ---
-    let filePath = path.join(__dirname, pathname === '/' ? 'index.html' : pathname);
+    let targetPath = pathname;
+    if (pathname === '/' || pathname === '/connect-walletconnect') {
+        targetPath = '/app.html';
+    } else if (pathname === '/connect-rainbowkit') {
+        targetPath = '/connect-rainbowkit.html';
+    }
+    let filePath = path.join(__dirname, targetPath);
     
     // Safety check to prevent directory traversal
     if (!filePath.startsWith(__dirname)) {

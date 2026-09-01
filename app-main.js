@@ -24,7 +24,7 @@
             ethereum: {
                 name: 'Ethereum',
                 chainId: 1,
-                rpc: 'https://eth.llamarpc.com',
+                rpc: 'https://ethereum-rpc.publicnode.com',
                 explorer: 'https://etherscan.io',
                 symbol: 'ETH',
                 iconClass: 'chain-icon-eth',
@@ -77,6 +77,8 @@
     // ===== APP STATE =====
     const state = {
         currentChain: 'ritual',
+        activeMode: 'auto', // 'auto' | 'wallet' | 'contract'
+        lastTrackedAddress: null,
         walletAddress: null,
         provider: null,
         signer: null,
@@ -117,6 +119,7 @@
         btnTrack: document.getElementById('btn-track'),
         btnAsk: document.getElementById('btn-ask'),
         clearChatBtn: document.getElementById('clear-chat-btn'),
+        refreshMonitoringBtn: document.getElementById('refresh-monitoring-btn'),
         chatHeaderTitle: document.getElementById('chat-header-title'),
         chatHeaderSubtitle: document.getElementById('chat-header-subtitle'),
 
@@ -206,59 +209,52 @@
             return parseFloat(ethVal.toFixed(6)).toString();
         };
 
-        let apiUrl = '';
-        if (chainKey === 'ritual') {
-            apiUrl = `https://explorer.ritualfoundation.org/api/v2/addresses/${address}/transactions`;
-        } else if (chainKey === 'ethereum') {
-            apiUrl = `https://eth.blockscout.com/api/v2/addresses/${address}/transactions`;
-        } else {
-            return [];
-        }
+        const apiUrl = `/api/explorer/transactions?address=${address}&chain=${chainKey}`;
 
         try {
             const res = await fetch(apiUrl);
-            if (!res.ok) throw new Error("API response not ok");
-            const data = await res.json();
-            
-            if (data && data.items && Array.isArray(data.items)) {
-                return data.items.slice(0, 10).map(item => {
-                    const txValue = formatWei(item.value);
-                    const txTime = item.timestamp ? new Date(item.timestamp).toLocaleString() : 'Just now';
-                    const method = item.method || (item.to && item.to.is_contract ? 'Contract Call' : 'Transfer');
-                    const isIncoming = item.to && item.to.hash.toLowerCase() === address.toLowerCase();
+            if (res.ok) {
+                const data = await res.json();
+                if (data && data.items && Array.isArray(data.items) && data.items.length > 0) {
+                    return data.items.slice(0, 10).map(item => {
+                        const txValue = formatWei(item.value);
+                        const txTime = item.timestamp ? new Date(item.timestamp).toLocaleString() : 'Just now';
+                        const method = item.method || (item.to && item.to.is_contract ? 'Contract Call' : 'Transfer');
+                        const isIncoming = item.to && item.to.hash && item.to.hash.toLowerCase() === address.toLowerCase();
 
-                    return {
-                        type: isIncoming ? 'receive' : 'send',
-                        label: method.charAt(0).toUpperCase() + method.slice(1),
-                        icon: isIncoming ? '↙' : '↗',
-                        from: item.from ? item.from.hash : 'unknown',
-                        to: item.to ? item.to.hash : 'unknown',
-                        amount: `${isIncoming ? '+' : '-'}${txValue} ${chain.symbol}`,
-                        valueClass: isIncoming ? 'activity-value-positive' : 'activity-value-negative',
-                        time: txTime,
-                        txHash: item.hash,
-                        explorer: `${chain.explorer}/tx/${item.hash}`
-                    };
-                });
+                        return {
+                            type: isIncoming ? 'receive' : 'send',
+                            label: method ? (method.charAt(0).toUpperCase() + method.slice(1)) : 'Transaction',
+                            icon: isIncoming ? '↙' : '↗',
+                            from: item.from ? item.from.hash : 'unknown',
+                            to: item.to ? item.to.hash : 'unknown',
+                            amount: `${isIncoming ? '+' : '-'}${txValue} ${chain.symbol}`,
+                            valueClass: isIncoming ? 'activity-value-positive' : 'activity-value-negative',
+                            time: txTime,
+                            txHash: item.hash,
+                            explorer: `${chain.explorer}/tx/${item.hash}`
+                        };
+                    });
+                }
             }
         } catch (err) {
-            console.error("Error fetching transactions from Blockscout:", err);
+            console.error("Error fetching transactions via proxy:", err);
         }
 
-        // Fallback: Check wallet balance and contract code via RPC
+        // Fallback: Check wallet balance and contract code via RPC node directly
         try {
             const rpcProvider = new ethers.JsonRpcProvider(chain.rpc);
             const balance = await rpcProvider.getBalance(address);
             const balanceEth = formatWei(balance.toString());
             const code = await rpcProvider.getCode(address);
-            const isContract = code !== '0x';
+            const isContract = code !== '0x' && code !== '0x0';
 
             return [{
                 type: 'receive',
-                label: isContract ? 'Smart Contract Verified' : 'Wallet Active',
+                label: isContract ? 'Smart Contract Verified' : 'Wallet Active & Listening',
                 icon: '⚡',
                 from: address,
-                to: isContract ? 'Contract Deployer' : 'External Balance',
+                to: isContract ? 'Contract Deployer' : 'External Wallet',
                 amount: `${balanceEth} ${chain.symbol}`,
                 valueClass: 'activity-value-positive',
                 time: 'Live Balance',
@@ -348,8 +344,92 @@
         });
     }
 
-    // ===== WALLET CONNECTION (Reown AppKit Modal Exclusive) =====
+    // ===== UNIFIED REACTIVE WALLET STATE MACHINE =====
+    let isAuthenticatingSession = false;
+
+    async function handleAccountConnected(rawAddress, customProvider) {
+        if (!rawAddress) return;
+        const address = rawAddress.toLowerCase();
+
+        // Prevent redundant setup or duplicate signature prompts if already connected or currently signing
+        if ((state.walletAddress && state.walletAddress.toLowerCase() === address && DOM.walletBtn.getAttribute('data-full-address')) || isAuthenticatingSession) {
+            return;
+        }
+
+        isAuthenticatingSession = true;
+
+        try {
+            const rawProv = customProvider || (typeof window.ethereum !== 'undefined' ? window.ethereum : null);
+            if (rawProv) {
+                state.provider = new ethers.BrowserProvider(rawProv);
+                state.signer = await state.provider.getSigner();
+            }
+
+            state.walletAddress = rawAddress;
+
+            // Session Signature Handling
+            let savedSig = localStorage.getItem('ritalert_wallet_signature');
+            let savedWallet = localStorage.getItem('ritalert_connected_wallet');
+
+            if (!savedSig || !savedWallet || savedWallet.toLowerCase() !== address) {
+                if (state.signer) {
+                    addSystemMessage("Please sign the session authentication request in your wallet...");
+                    state.walletSignature = await state.signer.signMessage("Authenticate RitAlert Session");
+                    localStorage.setItem('ritalert_wallet_signature', state.walletSignature);
+                }
+            } else {
+                state.walletSignature = savedSig;
+            }
+
+            localStorage.setItem('ritalert_connected_wallet', rawAddress);
+
+            // Update UI DOM
+            DOM.walletBtn.classList.add('connected');
+            DOM.walletBtn.setAttribute('data-full-address', rawAddress);
+            DOM.walletBtn.setAttribute('data-signature', state.walletSignature || '');
+            DOM.walletBtnText.innerHTML = `<span class="wallet-dot"></span> ${abbreviate(rawAddress)}`;
+            DOM.statusWallet.textContent = `Wallet: ${abbreviate(rawAddress)}`;
+
+            addSystemMessage(`Wallet connected & authenticated: ${abbreviate(rawAddress)}`);
+
+            pollBlockNumber();
+            loadDBTrackedHistory(rawAddress);
+            if (window.loadDBSocials) window.loadDBSocials(rawAddress);
+        } catch (err) {
+            console.error("Failed to authenticate connected wallet:", err);
+            addAIMessage(`Wallet authentication failed: ${err.message}`);
+        } finally {
+            isAuthenticatingSession = false;
+        }
+    }
+
+    function handleAccountDisconnected() {
+        localStorage.removeItem('ritalert_connected_wallet');
+        localStorage.removeItem('ritalert_wallet_signature');
+        state.walletAddress = null;
+        state.signer = null;
+        state.walletSignature = null;
+        DOM.walletBtn.classList.remove('connected');
+        DOM.walletBtn.removeAttribute('data-full-address');
+        DOM.walletBtn.removeAttribute('data-signature');
+        DOM.walletBtnText.textContent = 'Connect Wallet';
+        DOM.statusWallet.textContent = 'Wallet: Not connected';
+        addSystemMessage('Wallet disconnected');
+    }
+
+    // Expose handlers globally for RainbowKit React bridge
+    window.handleAccountConnected = handleAccountConnected;
+    window.handleAccountDisconnected = handleAccountDisconnected;
+
     async function connectWallet() {
+        if (typeof window.openRainbowKitModal === 'function') {
+            try {
+                window.openRainbowKitModal();
+                return;
+            } catch (err) {
+                console.error("RainbowKit open error:", err);
+            }
+        }
         if (window.reownAppKitModal) {
             try {
                 window.reownAppKitModal.open({ view: 'Connect' });
@@ -358,40 +438,46 @@
                 console.error("Reown AppKit open error:", err);
             }
         } else {
-            console.warn("Reown AppKit modal initializing... retrying");
+            console.warn("Wallet modal initializing... retrying");
             setTimeout(() => {
-                if (window.reownAppKitModal) window.reownAppKitModal.open({ view: 'Connect' });
+                if (typeof window.openRainbowKitModal === 'function') {
+                    window.openRainbowKitModal();
+                } else if (window.reownAppKitModal) {
+                    window.reownAppKitModal.open({ view: 'Connect' });
+                }
             }, 300);
         }
     }
 
     async function checkAutoConnectWallet() {
-        const savedWallet = localStorage.getItem('ritalert_connected_wallet');
-        const savedSignature = localStorage.getItem('ritalert_wallet_signature');
-
-        if (!savedWallet || !savedSignature || typeof window.ethereum === 'undefined') return;
-
-        try {
-            state.provider = new ethers.BrowserProvider(window.ethereum);
-            const accounts = await state.provider.send('eth_accounts', []);
-            if (accounts && accounts.length > 0 && accounts[0].toLowerCase() === savedWallet.toLowerCase()) {
-                state.signer = await state.provider.getSigner();
-                state.walletAddress = savedWallet;
-                state.walletSignature = savedSignature;
-
-                // Update UI automatically without asking user to re-sign
-                DOM.walletBtn.classList.add('connected');
-                DOM.walletBtn.setAttribute('data-full-address', state.walletAddress);
-                DOM.walletBtn.setAttribute('data-signature', state.walletSignature);
-                DOM.walletBtnText.innerHTML = `<span class="wallet-dot"></span> ${abbreviate(state.walletAddress)}`;
-                DOM.statusWallet.textContent = `Wallet: ${abbreviate(state.walletAddress)}`;
-
-                // Load tracking list and social connections from DB
-                loadDBTrackedHistory(state.walletAddress);
-                if (window.loadDBSocials) window.loadDBSocials(state.walletAddress);
+        // 1. Check if Reown AppKit has an active account state
+        if (window.reownAppKitModal && window.reownAppKitModal.getAccount) {
+            const acc = window.reownAppKitModal.getAccount();
+            if (acc && acc.isConnected && acc.address) {
+                const prov = window.reownAppKitModal.getWalletProvider ? window.reownAppKitModal.getWalletProvider() : null;
+                handleAccountConnected(acc.address, prov);
+                return;
             }
-        } catch (err) {
-            console.error("Auto wallet reconnect failed:", err);
+        }
+
+        // 2. Check injected window.ethereum (Rabby, MetaMask, etc.) regardless of saved localStorage
+        if (typeof window.ethereum !== 'undefined') {
+            try {
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const accounts = await provider.send('eth_accounts', []);
+                if (accounts && accounts.length > 0) {
+                    handleAccountConnected(accounts[0], window.ethereum);
+                    return;
+                }
+            } catch (err) {
+                console.error("Auto wallet check error:", err);
+            }
+        }
+
+        // 3. Fallback: Check saved localStorage wallet for seamless session restoration
+        const savedWallet = localStorage.getItem('ritalert_connected_wallet');
+        if (savedWallet) {
+            handleAccountConnected(savedWallet, null);
         }
     }
 
@@ -411,39 +497,17 @@
     function initReownAppKitSubscriber() {
         if (!window.reownAppKitModal) return;
         try {
-            window.reownAppKitModal.subscribeProvider(async (providerInfo) => {
-                if (providerInfo && providerInfo.provider) {
-                    try {
-                        state.provider = new ethers.BrowserProvider(providerInfo.provider);
-                        state.signer = await state.provider.getSigner();
-                        state.walletAddress = await state.signer.getAddress();
-
-                        if (!localStorage.getItem('ritalert_wallet_signature')) {
-                            addSystemMessage("Please sign the session authentication request in your connected wallet...");
-                            state.walletSignature = await state.signer.signMessage("Authenticate RitAlert Session");
-                            localStorage.setItem('ritalert_wallet_signature', state.walletSignature);
-                        } else {
-                            state.walletSignature = localStorage.getItem('ritalert_wallet_signature');
-                        }
-
-                        localStorage.setItem('ritalert_connected_wallet', state.walletAddress);
-
-                        DOM.walletBtn.classList.add('connected');
-                        DOM.walletBtn.setAttribute('data-full-address', state.walletAddress);
-                        DOM.walletBtn.setAttribute('data-signature', state.walletSignature);
-                        DOM.walletBtnText.innerHTML = `<span class="wallet-dot"></span> ${abbreviate(state.walletAddress)}`;
-                        DOM.statusWallet.textContent = `Wallet: ${abbreviate(state.walletAddress)}`;
-
-                        addSystemMessage(`Reown WalletConnect authenticated: ${abbreviate(state.walletAddress)}`);
-
-                        pollBlockNumber();
-                        loadDBTrackedHistory(state.walletAddress);
-                        if (window.loadDBSocials) window.loadDBSocials(state.walletAddress);
-                    } catch (err) {
-                        console.error("Reown provider setup error:", err);
+            // Subscribe to Reown AppKit account state changes
+            if (window.reownAppKitModal.subscribeAccount) {
+                window.reownAppKitModal.subscribeAccount((account) => {
+                    if (account && account.isConnected && account.address) {
+                        const prov = window.reownAppKitModal.getWalletProvider ? window.reownAppKitModal.getWalletProvider() : null;
+                        handleAccountConnected(account.address, prov);
+                    } else if (account && !account.isConnected && state.walletAddress) {
+                        handleAccountDisconnected();
                     }
-                }
-            });
+                });
+            }
         } catch (e) {
             console.warn("Reown subscriber notice:", e);
         }
@@ -460,35 +524,27 @@
             if (!state.walletAddress) {
                 connectWallet();
             } else {
-                if (confirm(`Disconnect wallet ${abbreviate(state.walletAddress)}?`)) {
-                    localStorage.removeItem('ritalert_connected_wallet');
-                    localStorage.removeItem('ritalert_wallet_signature');
-                    DOM.walletBtnText.textContent = 'Connect Wallet';
-                    DOM.statusWallet.textContent = 'Wallet: Not connected';
-                    addSystemMessage('Wallet disconnected');
+                if (typeof window.openRainbowKitAccountModal === 'function') {
+                    window.openRainbowKitAccountModal();
+                } else if (window.reownAppKitModal) {
+                    window.reownAppKitModal.open({ view: 'Account' });
+                } else {
+                    handleAccountDisconnected();
                 }
-                return;
             }
-            connectWallet();
         });
 
-        // Listen for account changes
+        // Listen for accountsChanged and chainChanged on window.ethereum
         if (typeof window.ethereum !== 'undefined') {
             window.ethereum.on('accountsChanged', (accounts) => {
                 if (accounts.length === 0) {
-                    localStorage.removeItem('ritalert_connected_wallet');
-                    localStorage.removeItem('ritalert_wallet_signature');
-                    state.walletAddress = null;
-                    state.signer = null;
-                    state.walletSignature = null;
-                    DOM.walletBtn.classList.remove('connected');
-                    DOM.walletBtn.removeAttribute('data-full-address');
-                    DOM.walletBtnText.textContent = 'Connect Wallet';
-                    DOM.statusWallet.textContent = 'Wallet: Not connected';
-                    addSystemMessage('Wallet disconnected');
+                    handleAccountDisconnected();
                 } else {
-                    connectWallet();
+                    handleAccountConnected(accounts[0], window.ethereum);
                 }
+            });
+            window.ethereum.on('chainChanged', () => {
+                window.location.reload();
             });
         }
     }
@@ -586,7 +642,12 @@
                     Found <strong>${activities.length} recent transactions</strong> for <strong>${abbreviate(address)}</strong> on ${CONFIG.chains[state.currentChain].name}
                 </div>
                 ${cardsHtml}
-                <div class="message-time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                <div style="margin-top: 0.75rem; display: flex; align-items: center; justify-content: space-between;">
+                    <button class="btn-track" onclick="window.refreshActiveMonitoring('${address}')" style="font-size: 0.75rem; padding: 0.35rem 0.85rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+                        <span>🔄</span> Refresh Live Data
+                    </button>
+                    <div class="message-time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                </div>
             </div>
         `;
 
@@ -632,10 +693,16 @@
 
     // ===== TRACKING LOGIC =====
     async function handleTrack(input) {
-        const address = input.trim();
+        let address = input.trim();
         if (!isAddress(address)) {
             addAIMessage("That doesn't look like a valid address. Please paste a valid Ethereum-style address (0x followed by 40 hex characters).");
             return;
+        }
+
+        try {
+            address = ethers.getAddress(address.toLowerCase());
+        } catch (e) {
+            // Keep original hex if checksum fails
         }
 
         addUserMessage(`Track ${abbreviate(address)}`);
@@ -647,16 +714,101 @@
         showTypingIndicator();
 
         try {
-            const activities = await fetchRealTransactions(address, state.currentChain);
-            hideTypingIndicator();
-            if (activities.length === 0) {
-                addAIMessage(`No transaction history found on the block explorer for **${abbreviate(address)}**.`);
+            const chain = CONFIG.chains[state.currentChain];
+            const rpcProvider = new ethers.JsonRpcProvider(chain.rpc);
+            const code = await rpcProvider.getCode(address);
+            const isContract = code !== '0x' && code !== '0x0';
+
+            // Mode enforcement & address type validation
+            if (state.activeMode === 'contract' && !isContract) {
+                hideTypingIndicator();
+                addAIMessage(
+                    `⚠️ **Invalid Target Type for Contract Monitoring**\n\n` +
+                    `The address \`${address}\` is a **Personal Wallet Address (EOA)**, NOT a Smart Contract.\n\n` +
+                    `• **Selected Mode:** Smart Contract Monitoring\n` +
+                    `• **Detected Address Type:** Personal Wallet (EOA - no bytecode deployed)\n\n` +
+                    `To track wallet balances and transactions for this address, please switch to **Wallet Address Tracking** mode (\`👛 Track a wallet\`). If you intended to monitor a smart contract, please provide a valid smart contract address.`
+                );
+                return;
+            }
+
+            if (state.activeMode === 'wallet' && isContract) {
+                hideTypingIndicator();
+                addAIMessage(
+                    `⚠️ **Target Address is a Smart Contract**\n\n` +
+                    `The address \`${address}\` is a **Smart Contract**, NOT a Personal Wallet (EOA).\n\n` +
+                    `• **Selected Mode:** Wallet Address Tracking\n` +
+                    `• **Detected Address Type:** Verified Smart Contract Bytecode\n\n` +
+                    `To monitor contract executions, events, and token functions for this contract, please switch to **Smart Contract Monitoring** mode (\`📜 Monitor a contract\`).`
+                );
+                return;
+            }
+
+            if (isContract) {
+                let tokenName = 'Smart Contract';
+                let tokenSymbol = '';
+                let totalSupplyStr = '';
+
+                try {
+                    const tokenContract = new ethers.Contract(address, [
+                        "function name() view returns (string)",
+                        "function symbol() view returns (string)",
+                        "function totalSupply() view returns (uint256)",
+                        "function decimals() view returns (uint8)"
+                    ], rpcProvider);
+
+                    const [name, symbol, supply, decimals] = await Promise.allSettled([
+                        tokenContract.name(),
+                        tokenContract.symbol(),
+                        tokenContract.totalSupply(),
+                        tokenContract.decimals()
+                    ]);
+
+                    if (name.status === 'fulfilled') tokenName = name.value;
+                    if (symbol.status === 'fulfilled') tokenSymbol = symbol.value;
+                    if (supply.status === 'fulfilled' && decimals.status === 'fulfilled') {
+                        const formattedSupply = ethers.formatUnits(supply.value, decimals.value);
+                        totalSupplyStr = parseFloat(formattedSupply).toLocaleString();
+                    }
+                } catch (e) {
+                    console.log("Non-standard ERC-20 contract query notice:", e);
+                }
+
+                const activities = await fetchRealTransactions(address, state.currentChain);
+                hideTypingIndicator();
+
+                addAIMessage(
+                    `📜 **Smart Contract Monitoring Active**\n\n` +
+                    `• **Contract Address:** \`${address}\`\n` +
+                    `• **Contract Type:** ${tokenSymbol ? `ERC-20 Token (${tokenSymbol})` : 'Executable Smart Contract'}\n` +
+                    (tokenName ? `• **Name:** ${tokenName}\n` : '') +
+                    (totalSupplyStr ? `• **Total Supply:** ${totalSupplyStr} ${tokenSymbol}\n` : '') +
+                    `• **Blockchain:** ${chain.name} (Chain ID ${chain.chainId})\n` +
+                    `• **Explorer:** [View on Explorer](${chain.explorer}/address/${address})\n\n` +
+                    `✅ **Real-Time Monitoring:** Listening to block contract calls, execution events, and token transfers.`
+                );
+
+                if (activities.length > 0) {
+                    addActivityCards(address, activities);
+                }
             } else {
-                addActivityCards(address, activities);
+                const activities = await fetchRealTransactions(address, state.currentChain);
+                hideTypingIndicator();
+                if (activities.length === 0) {
+                    addAIMessage(`No transaction history found on the block explorer for **${abbreviate(address)}**.`);
+                } else {
+                    addActivityCards(address, activities);
+                }
             }
         } catch (err) {
             hideTypingIndicator();
             addAIMessage(`Error fetching real-life transaction details: ${err.message}`);
+        }
+
+        // Save last tracked address and reveal refresh button
+        state.lastTrackedAddress = address;
+        if (DOM.refreshMonitoringBtn) {
+            DOM.refreshMonitoringBtn.style.display = 'inline-flex';
         }
 
         // Update header
@@ -1333,12 +1485,26 @@
                 const action = btn.dataset.action;
                 switch (action) {
                     case 'track-sample-wallet':
-                        DOM.chatInput.value = SAMPLE_ADDRESSES.wallet;
-                        handleTrack(SAMPLE_ADDRESSES.wallet);
+                        state.activeMode = 'wallet';
+                        addAIMessage(
+                            `👛 **Wallet Address Tracking Mode Active**\n\n` +
+                            `Please enter or paste the personal wallet address (EOA) you want to track in the chat box below (e.g. \`0x...\`).\n\n` +
+                            `*(Note: Smart contract addresses will be rejected in this mode).*`
+                        );
+                        DOM.chatInput.value = '';
+                        DOM.chatInput.placeholder = 'Paste personal wallet address (0x...)';
+                        DOM.chatInput.focus();
                         break;
                     case 'track-sample-contract':
-                        DOM.chatInput.value = SAMPLE_ADDRESSES.contract;
-                        handleTrack(SAMPLE_ADDRESSES.contract);
+                        state.activeMode = 'contract';
+                        addAIMessage(
+                            `📜 **Smart Contract Monitoring Mode Active**\n\n` +
+                            `Please enter or paste the smart contract address you want to monitor in the chat box below (e.g. \`0xdAC17F958D2ee523a2206206994597C13D831ec7\` for USDT or any smart contract on Ritual Testnet or Ethereum).\n\n` +
+                            `*(Note: Personal wallet addresses will be rejected in this mode).*`
+                        );
+                        DOM.chatInput.value = '';
+                        DOM.chatInput.placeholder = 'Paste smart contract address (0x...)';
+                        DOM.chatInput.focus();
                         break;
                     case 'setup-alerts':
                         DOM.notificationsModalOverlay.classList.add('active');
@@ -1396,6 +1562,28 @@
             }
         });
 
+        // Refresh monitoring handler
+        window.refreshActiveMonitoring = async function(targetAddress) {
+            const addressToRefresh = targetAddress || state.lastTrackedAddress;
+            if (!addressToRefresh) return;
+
+            const refreshSpinners = document.querySelectorAll('.refresh-spinner');
+            refreshSpinners.forEach(sp => { sp.style.transform = 'rotate(360deg)'; });
+
+            addSystemMessage(`🔄 Syncing live block transactions for ${abbreviate(addressToRefresh)} on ${CONFIG.chains[state.currentChain].name}...`);
+            await handleTrack(addressToRefresh);
+
+            setTimeout(() => {
+                refreshSpinners.forEach(sp => { sp.style.transform = 'rotate(0deg)'; });
+            }, 600);
+        };
+
+        if (DOM.refreshMonitoringBtn) {
+            DOM.refreshMonitoringBtn.addEventListener('click', () => {
+                window.refreshActiveMonitoring();
+            });
+        }
+
         // New chat
         DOM.newChatBtn.addEventListener('click', () => {
             clearChat();
@@ -1408,6 +1596,10 @@
     }
 
     function clearChat() {
+        state.lastTrackedAddress = null;
+        if (DOM.refreshMonitoringBtn) {
+            DOM.refreshMonitoringBtn.style.display = 'none';
+        }
         DOM.chatMessages.innerHTML = '';
         // Re-add welcome screen
         DOM.chatMessages.innerHTML = `

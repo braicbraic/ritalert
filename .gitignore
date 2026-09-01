@@ -1,3 +1,8 @@
 .env
 node_modules/
 .gemini/
+*.log
+bot-scanner.log
+bot-state.json
+tracking-db.json
+

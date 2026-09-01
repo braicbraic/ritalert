@@ -6,6 +6,7 @@
     <title>RitAlert — App</title>
     <meta name="description" content="Track wallet addresses and smart contracts across multiple blockchains with AI-powered alerts.">
     <link rel="stylesheet" href="app.css?v=ritual-theme-17">
+    <link rel="stylesheet" href="rainbowkit-bundle.css">
     <script async src="https://telegram.org/js/telegram-widget.js?22"></script>
 </head>
 <body>
@@ -174,7 +175,11 @@
                     <div class="chat-header-title" id="chat-header-title">RitAlert Agent</div>
                     <div class="chat-header-subtitle" id="chat-header-subtitle">Paste any wallet or contract address to start tracking</div>
                 </div>
-                <div style="display:flex; gap:0.5rem;">
+                <div style="display:flex; gap:0.5rem; align-items:center;">
+                    <button class="btn-track" id="refresh-monitoring-btn" style="font-size:0.75rem; padding:0.4rem 0.85rem; display:none; align-items:center; gap:0.35rem; border-radius:6px; cursor:pointer;" title="Fetch updated transactions & live balance">
+                        <span class="refresh-spinner" style="display:inline-block; transition:transform 0.5s ease;">🔄</span>
+                        <span>Refresh Data</span>
+                    </button>
                     <button class="btn-ask" id="clear-chat-btn" style="font-size:0.75rem;">Clear Chat</button>
                 </div>
             </div>
@@ -513,7 +518,7 @@
 
     <!-- ========== SCRIPTS ========== -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
-    <script src="reown-bundle.js"></script>
+    <script src="rainbowkit-bundle.js"></script>
     <script src="app-main.js"></script>
     <script>
     (function() {
@@ -832,9 +837,15 @@
             const desc = document.getElementById('paywall-desc');
 
             setInterval(() => {
-                const hasAddress = walletBtn.getAttribute('data-full-address');
+                const connectedAddr = localStorage.getItem('ritalert_connected_wallet');
+                const btnAddr = walletBtn ? walletBtn.getAttribute('data-full-address') : null;
+                const hasAddress = btnAddr || connectedAddr;
                 
                 if (hasAddress) {
+                    if (walletBtn && !btnAddr && connectedAddr) {
+                        walletBtn.setAttribute('data-full-address', connectedAddr);
+                        walletBtn.classList.add('connected');
+                    }
                     if (hasAddress !== lastCheckedAddress) {
                         lastCheckedAddress = hasAddress;
                         logConsole(`Connecting wallet ${hasAddress.substring(0, 6)}...`);
@@ -859,18 +870,24 @@
                                         const banner = document.getElementById('trial-banner');
                                         if (banner) banner.style.display = 'block';
                                     }
+                                } else if (!data.subscription) {
+                                    // First time user: Auto activate 7-day free trial on database
+                                    logConsole(`First time user connected. Auto-activating 7-day free trial...`);
+                                    activateTrial(hasAddress);
+                                    paywallOverlay.style.display = 'none';
+                                    hasActiveAccess = true;
                                 } else {
-                                    logConsole(`No active subscription found. Paywall active.`);
-                                    connectBtn.style.display = 'none';
-                                    upgradeOptions.style.display = 'block';
-                                    title.textContent = "Plan or Trial Required";
-                                    desc.textContent = "Your wallet is connected! Now, choose a subscription plan or activate your 7-day free trial to unlock your AI tracking agent.";
-                                    paywallOverlay.style.display = 'flex';
-                                    hasActiveAccess = false;
+                                    logConsole(`Subscription status checked. Granting access.`);
+                                    paywallOverlay.style.display = 'none';
+                                    hasActiveAccess = true;
                                 }
                                 loadSocialConnections(hasAddress);
                             })
-                            .catch(err => console.error("Error querying subscription status:", err));
+                            .catch(err => {
+                                console.error("Error querying subscription status:", err);
+                                paywallOverlay.style.display = 'none';
+                                hasActiveAccess = true;
+                            });
                     }
                 } else {
                     lastCheckedAddress = null;

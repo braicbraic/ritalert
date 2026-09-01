@@ -2,6 +2,7 @@
 
 ## 1. Web3 Wallet Connection Rules (Reown AppKit / WalletConnect)
 * **Library**: `@reown/appkit` (formerly WalletConnect AppKit / Web3Modal) with `@reown/appkit-adapter-ethers`.
+* **Full Documentation**: Refer to [REOWN_WALLETCONNECT_INTEGRATION.md](file:///c:/Users/5550%20DELL%20PRECISION/VIBECODE%20PROJECTS/ritalert/REOWN_WALLETCONNECT_INTEGRATION.md) for full bundle architecture, reactive state machine, and concurrency lock logic.
 * **Cloud Project ID**: `8422e6900f40d4653634e7a2b979401d` configured for domain `ritalert.netlify.app`.
 * **Multi-Wallet Support**: QR code scanning across 300+ mobile wallets (Trust Wallet, Rainbow, Metamask Mobile, Zerion, etc.), injected browser extensions (MetaMask, Rabby, Coinbase Wallet), and social/email logins.
 * **LocalStorage Keys**: Store `ritalert_connected_wallet` and `ritalert_wallet_signature` upon successful wallet authentication.
